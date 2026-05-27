@@ -1,6 +1,6 @@
 DOMAIN = "nordpool_ee_scraper"
 
-# Default Tariff Settings
+# Default Tariff Settings (€/kWh)
 DEFAULT_MARGIN = 0.00328
 DEFAULT_TAASTUV = 0.0084
 DEFAULT_AKTSIIS = 0.0021
@@ -8,4 +8,4 @@ DEFAULT_ELEKTRILEVI_DAY = 0.0369
 DEFAULT_ELEKTRILEVI_NIGHT = 0.021
 DEFAULT_TASAKAAL = 0.00373
 DEFAULT_VARUSTUS = 0.00758
-DEFAULT_VAT = 1.24
+DEFAULT_VAT = 24.0  # Changed to percentage notation

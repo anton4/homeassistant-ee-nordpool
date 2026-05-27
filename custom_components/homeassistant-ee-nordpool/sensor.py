@@ -9,7 +9,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
         NordpoolPriceSensor(coordinator),
         NordpoolStateSensor(coordinator),
-        NordpoolTotalCostSensor(coordinator) # The new 3rd sensor
+        NordpoolTotalCostSensor(coordinator)
     ])
 
 class NordpoolPriceSensor(CoordinatorEntity, SensorEntity):
@@ -44,8 +44,6 @@ class NordpoolStateSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         return self.coordinator.data.get("state", "Waiting")
 
-
-# --- NEW 3RD SENSOR ---
 class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -67,7 +65,6 @@ class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
         if not raw_prices:
             return {"prices": []}
 
-        # 1. Fetch live user options (fallback to initial data or defaults)
         def get_opt(key, default):
             return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
 
@@ -78,15 +75,13 @@ class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
         varustus = get_opt("varustus", DEFAULT_VARUSTUS)
         el_day = get_opt("elektrilevi_day", DEFAULT_ELEKTRILEVI_DAY)
         el_night = get_opt("elektrilevi_night", DEFAULT_ELEKTRILEVI_NIGHT)
-        vat = get_opt("vat", DEFAULT_VAT)
+        vat_percent = get_opt("vat", DEFAULT_VAT)
 
         calculated_prices = []
 
-        # 2. Iterate and apply your exact template logic in Python
         for p in raw_prices:
             start_dt = dt_util.parse_datetime(p["start"])
             
-            # Python datetime weekday: 5 = Saturday, 6 = Sunday
             is_weekend = start_dt.weekday() in (5, 6)
             is_night_hour = start_dt.hour < 7 or start_dt.hour >= 22
             is_holiday = start_dt.date() in self.ee_holidays
@@ -96,12 +91,13 @@ class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
             else:
                 tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_day
 
-            final_value = (p["value"] + tariff) * vat
+            # Math converted: (Price + Tariffs) * (1 + 24 / 100) -> multiplier becomes 1.24
+            final_value = (p["value"] + tariff) * (1.0 + (vat_percent / 100.0))
 
             calculated_prices.append({
                 "start": p["start"],
                 "end": p["end"],
-                "value": round(final_value, 5) # Rounded to 5 decimal places to match normal HA math
+                "value": round(final_value, 5)
             })
 
         return {"prices": calculated_prices}

@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nordpool EE Setup",
+        "data": {
+          "fast_interval": "Fast Polling Interval (minutes)",
+          "slow_interval": "Slow Polling Interval (hours)",
+          "margin": "Margin (€/kWh)",
+          "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
+          "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",
+          "elektrilevi_day": "Elektrilevi Daytime Transmission (€/kWh)",
+          "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
+          "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
+          "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
+          "vat": "VAT (%)"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Adjust Tariffs & Fees",
+        "data": {
+          "fast_interval": "Fast Polling Interval (minutes)",
+          "slow_interval": "Slow Polling Interval (hours)",
+          "margin": "Margin (€/kWh)",
+          "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
+          "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",
+          "elektrilevi_day": "Elektrilevi Daytime Transmission (€/kWh)",
+          "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
+          "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
+          "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
+          "vat": "VAT (%)"
+        }
+      }
+    }
+  }
+}
