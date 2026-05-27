@@ -1,0 +1,27 @@
+# Python bytecode and cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS-specific junk
+.DS_Store
+Thumbs.db
+
+# Virtual Environments (if you test locally)
+venv/
+.venv/
+env/
+
+# Home Assistant local test configuration (if you run tests locally)
+config/.HA_VERSION
+config/home-assistant.log
+config/home-assistant_v2.db
+config/.storage/
+
+# IDE settings (optional but recommended)
+.vscode/
+.idea/

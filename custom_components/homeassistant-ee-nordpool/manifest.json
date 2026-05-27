@@ -1,0 +1,11 @@
+{
+  "domain": "nordpool_ee_scraper",
+  "name": "Nordpool EE Prices",
+  "config_flow": true,
+  "documentation": "https://github.com/anton4/homeassistant-ee-nordpool",
+  "dependencies": [],
+  "codeowners": [],
+  "requirements": ["holidays>=0.38"],
+  "iot_class": "cloud_polling",
+  "version": "2026.06.1"
+}
