@@ -3,6 +3,7 @@ from datetime import timedelta
 import async_timeout
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 import homeassistant.util.dt as dt_util
 
 _LOGGER = logging.getLogger(__name__)
@@ -86,7 +87,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         _LOGGER.info("Nordpool Polling Executed Exactly At: %s", now.isoformat())
         
         try:
-            session = self.hass.helpers.aiohttp_client.async_get_clientsession(self.hass)
+            # CORRECTED LINE: Using the properly imported function
+            session = async_get_clientsession(self.hass)
             
             # Fetch Today (Safety net to populate cache if empty)
             if needs_today_data:
