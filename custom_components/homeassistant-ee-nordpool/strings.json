@@ -2,22 +2,23 @@
   "config": {
     "step": {
       "user": {
-        "title": "Nordpool EE Setup",
+        "title": "Nordpool EE Prices Setup",
+        "description": "Configure your regional energy grid fees, margins, and forecasting features. All price parameters must be specified in €/kWh (e.g., 1.2 cents = 0.012).",
         "data": {
           "fast_interval": "Fast Polling Interval (minutes)",
           "slow_interval": "Slow Polling Interval (hours)",
-          "margin": "Margin (€/kWh)",
+          "margin": "Broker Import Margin (€/kWh)",
           "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
           "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",
-          "elektrilevi_day": "Elektrilevi Daytime Transmission (€/kWh)",
-          "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
-          "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
-          "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
-          "vat": "VAT (%)",
-          "export_margin": "Export Margin (€/kWh)",
-          "export_tasakaal": "Export Balancing Fee (€/kWh)",
-          "extend_fi": "Extend prices using FI Forecast",
-          "extend_fi_days": "Days to extend FI Forecast (1-7)"
+          "elektrilevi_day": "Elektrilevi Daytime Transmission Rate (€/kWh)",
+          "elektrilevi_night": "Elektrilevi Night/Weekend/Holiday Transmission Rate (€/kWh)",
+          "tasakaal": "Import Balancing Service Fee / Tasakaalustusosa (€/kWh)",
+          "varustus": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)",
+          "vat": "Value Added Tax / Käibemaks (%)",
+          "export_margin": "Broker Export Margin Deduction (€/kWh)",
+          "export_tasakaal": "Export Balancing Service Fee (€/kWh)",
+          "extend_fi": "Extend price profile using Finnish (FI) forecast model",
+          "extend_fi_days": "Forecast Extension Window (Days, 1-7)"
         }
       }
     }
@@ -25,22 +26,23 @@
   "options": {
     "step": {
       "init": {
-        "title": "Adjust Tariffs & Fees",
+        "title": "Adjust Tariffs, Fees & Forecasts",
+        "description": "Modify your current price parameters. Ensure all utility costs are accurately mapped in €/kWh.",
         "data": {
           "fast_interval": "Fast Polling Interval (minutes)",
           "slow_interval": "Slow Polling Interval (hours)",
-          "margin": "Margin (€/kWh)",
+          "margin": "Broker Import Margin (€/kWh)",
           "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
           "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",
-          "elektrilevi_day": "Elektrilevi Daytime Transmission (€/kWh)",
-          "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
-          "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
-          "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
-          "vat": "VAT (%)",
-          "export_margin": "Export Margin (€/kWh)",
-          "export_tasakaal": "Export Balancing Fee (€/kWh)",
-          "extend_fi": "Extend prices using FI Forecast",
-          "extend_fi_days": "Days to extend FI Forecast (1-7)"
+          "elektrilevi_day": "Elektrilevi Daytime Transmission Rate (€/kWh)",
+          "elektrilevi_night": "Elektrilevi Night/Weekend/Holiday Transmission Rate (€/kWh)",
+          "tasakaal": "Import Balancing Service Fee / Tasakaalustusosa (€/kWh)",
+          "varustus": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)",
+          "vat": "Value Added Tax / Käibemaks (%)",
+          "export_margin": "Broker Export Margin Deduction (€/kWh)",
+          "export_tasakaal": "Export Balancing Service Fee (€/kWh)",
+          "extend_fi": "Extend price profile using Finnish (FI) forecast model",
+          "extend_fi_days": "Forecast Extension Window (Days, 1-7)"
         }
       }
     }

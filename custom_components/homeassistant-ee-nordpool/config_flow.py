@@ -11,8 +11,8 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title="Nordpool EE Prices", data=user_input)
 
         schema = vol.Schema({
-            vol.Required("fast_interval", default=5): vol.All(int, vol.Range(min=1, max=15)),
-            vol.Required("slow_interval", default=1): vol.All(int, vol.Range(min=1, max=5)),
+            vol.Required("fast_interval", default=5): vol.All(int, vol.Range(min=1, max=60)),
+            vol.Required("slow_interval", default=1): vol.All(int, vol.Range(min=1, max=24)),
             vol.Required("margin", default=DEFAULT_MARGIN): vol.Coerce(float),
             vol.Required("taastuv", default=DEFAULT_TAASTUV): vol.Coerce(float),
             vol.Required("aktsiis", default=DEFAULT_AKTSIIS): vol.Coerce(float),
@@ -42,8 +42,8 @@ class NordpoolOptionsFlow(config_entries.OptionsFlow):
             return self.config_entry.options.get(key, self.config_entry.data.get(key, default))
 
         schema = vol.Schema({
-            vol.Required("fast_interval", default=get_val("fast_interval", 5)): vol.All(int, vol.Range(min=1, max=15)),
-            vol.Required("slow_interval", default=get_val("slow_interval", 1)): vol.All(int, vol.Range(min=1, max=5)),
+            vol.Required("fast_interval", default=get_val("fast_interval", 5)): vol.All(int, vol.Range(min=1, max=60)),
+            vol.Required("slow_interval", default=get_val("slow_interval", 1)): vol.All(int, vol.Range(min=1, max=24)),
             vol.Required("margin", default=get_val("margin", DEFAULT_MARGIN)): vol.Coerce(float),
             vol.Required("taastuv", default=get_val("taastuv", DEFAULT_TAASTUV)): vol.Coerce(float),
             vol.Required("aktsiis", default=get_val("aktsiis", DEFAULT_AKTSIIS)): vol.Coerce(float),
