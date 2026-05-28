@@ -1,4 +1,5 @@
 import holidays
+from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -13,11 +14,10 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolImportCostSensor(coordinator),
         NordpoolExportCostSensor(coordinator),
         NordpoolLastPollSensor(coordinator),
-        NordpoolNextPollSensor(coordinator) # ADD THIS LINE
+        NordpoolNextPollSensor(coordinator)
     ])
 
 class NordpoolBaseEntity(CoordinatorEntity):
-    """Base class to handle automatic integration page grouping via DeviceInfo."""
     _attr_has_entity_name = True
 
     @property
@@ -29,6 +29,66 @@ class NordpoolBaseEntity(CoordinatorEntity):
             model="15-Minute Market Resolution",
         )
 
+    def _get_merged_raw_prices(self):
+        """Merges EE prices with the FI Forecast if enabled."""
+        raw_prices = self.coordinator.data.get("prices", [])
+        if not raw_prices:
+            return []
+
+        # Retrieve user config
+        def get_opt(key, default):
+            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
+
+        extend_fi = get_opt("extend_fi", DEFAULT_EXTEND_FI)
+        if not extend_fi:
+            return raw_prices
+
+        # Fetch external FI Sensor State
+        fi_state = self.coordinator.hass.states.get("sensor.nordpool_predict_fi_price")
+        if not fi_state or not fi_state.attributes.get("forecast"):
+            return raw_prices
+
+        merged = list(raw_prices)
+        extend_days = get_opt("extend_fi_days", DEFAULT_EXTEND_FI_DAYS)
+        
+        # Determine the exact timestamp where EE prices stop
+        ee_end_dt = dt_util.parse_datetime(merged[-1]["end"])
+        cutoff_dt = ee_end_dt + timedelta(days=extend_days)
+
+        fi_forecast = fi_state.attributes.get("forecast")
+
+        for item in fi_forecast:
+            # Convert UTC time to Local HA timezone
+            fi_start_dt = dt_util.as_local(dt_util.parse_datetime(item["timestamp"]))
+            fi_end_dt = fi_start_dt + timedelta(hours=1)
+            
+            # Skip FI blocks that overlap with existing EE blocks
+            if fi_end_dt <= ee_end_dt:
+                continue
+                
+            # Stop parsing if we hit the user's future day limit
+            if fi_start_dt >= cutoff_dt:
+                break
+                
+            # Convert FI cents/kWh to EUR/kWh
+            fi_value_eur = float(item["value"]) / 100.0
+            
+            # Split the 1-hour block into four 15-minute blocks
+            for i in range(4):
+                block_start = fi_start_dt + timedelta(minutes=15 * i)
+                block_end = block_start + timedelta(minutes=15)
+                
+                if block_start >= ee_end_dt and block_start < cutoff_dt:
+                    merged.append({
+                        "start": block_start.isoformat(),
+                        "end": block_end.isoformat(),
+                        "value": round(fi_value_eur, 5),
+                        "is_forecast": True # Tagged as forecast just in case
+                    })
+                    
+        return merged
+
+
 class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -38,7 +98,7 @@ class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        prices = self.coordinator.data.get("prices", [])
+        prices = self._get_merged_raw_prices()
         if prices:
             return f"{len(prices)} periods loaded"
         return "Waiting for data"
@@ -46,7 +106,7 @@ class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         return {
-            "prices": self.coordinator.data.get("prices", []),
+            "prices": self._get_merged_raw_prices(),
             "last_poll_time": self.coordinator.last_poll_time.isoformat() if self.coordinator.last_poll_time else None
         }
 
@@ -71,14 +131,15 @@ class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        prices = self.coordinator.data.get("prices", [])
+        prices = self._get_merged_raw_prices()
         if prices:
             return f"{len(prices)} calculated"
         return "Waiting for data"
 
     @property
     def extra_state_attributes(self):
-        raw_prices = self.coordinator.data.get("prices", [])
+        # Now fetches the perfectly stitched EE + FI raw list
+        raw_prices = self._get_merged_raw_prices()
         if not raw_prices:
             return {"prices": []}
 
@@ -113,7 +174,8 @@ class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
             calculated_prices.append({
                 "start": p["start"],
                 "end": p["end"],
-                "value": round(final_value, 5)
+                "value": round(final_value, 5),
+                "is_forecast": p.get("is_forecast", False)
             })
 
         return {"prices": calculated_prices}
@@ -127,14 +189,14 @@ class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        prices = self.coordinator.data.get("prices", [])
+        prices = self._get_merged_raw_prices()
         if prices:
             return f"{len(prices)} calculated"
         return "Waiting for data"
 
     @property
     def extra_state_attributes(self):
-        raw_prices = self.coordinator.data.get("prices", [])
+        raw_prices = self._get_merged_raw_prices()
         if not raw_prices:
             return {"prices": []}
 
@@ -152,13 +214,13 @@ class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
             calculated_prices.append({
                 "start": p["start"],
                 "end": p["end"],
-                "value": round(final_value, 5)
+                "value": round(final_value, 5),
+                "is_forecast": p.get("is_forecast", False)
             })
 
         return {"prices": calculated_prices}
 
 
-# --- NEW: VISUAL POLL CONFIRMATION TIMESTAMP SENSOR ---
 class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -170,10 +232,8 @@ class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        # Feeds HA a raw datetime object; HA automatically converts it to your localized frontend UI string
         return self.coordinator.last_poll_time
 
-# --- NEW: VISUAL COUNTDOWN TIMESTAMP SENSOR ---
 class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -185,5 +245,4 @@ class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        # Home Assistant automatically converts this future time into a localized countdown string in the UI
         return self.coordinator.next_poll_time

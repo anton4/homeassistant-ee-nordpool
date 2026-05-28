@@ -14,8 +14,10 @@
           "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
           "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
           "vat": "VAT (%)",
-          "export_margin": "Export Margin / Miinusmärk (€/kWh)",
-          "export_tasakaal": "Export Balancing Fee (€/kWh)"
+          "export_margin": "Export Margin (€/kWh)",
+          "export_tasakaal": "Export Balancing Fee (€/kWh)",
+          "extend_fi": "Extend prices using FI Forecast",
+          "extend_fi_days": "Days to extend FI Forecast (1-7)"
         }
       }
     }
@@ -36,7 +38,9 @@
           "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
           "vat": "VAT (%)",
           "export_margin": "Export Margin (€/kWh)",
-          "export_tasakaal": "Export Balancing Fee (€/kWh)"
+          "export_tasakaal": "Export Balancing Fee (€/kWh)",
+          "extend_fi": "Extend prices using FI Forecast",
+          "extend_fi_days": "Days to extend FI Forecast (1-7)"
         }
       }
     }
