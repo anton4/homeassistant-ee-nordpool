@@ -21,24 +21,21 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("tasakaal", default=DEFAULT_TASAKAAL): vol.Coerce(float),
             vol.Required("varustus", default=DEFAULT_VARUSTUS): vol.Coerce(float),
             vol.Required("vat", default=DEFAULT_VAT): vol.Coerce(float),
+            vol.Required("export_margin", default=DEFAULT_EXPORT_MARGIN): vol.Coerce(float),
+            vol.Required("export_tasakaal", default=DEFAULT_EXPORT_TASAKAAL): vol.Coerce(float),
         })
         return self.async_show_form(step_id="user", data_schema=schema)
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
-        # We no longer pass config_entry into the handler here
         return NordpoolOptionsFlow()
 
 class NordpoolOptionsFlow(config_entries.OptionsFlow):
-    # The __init__ function has been completely removed.
-    # self.config_entry is now automatically provided by Home Assistant!
-
     async def async_step_init(self, user_input=None):
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        # Helper function to get existing data securely
         def get_val(key, default):
             return self.config_entry.options.get(key, self.config_entry.data.get(key, default))
 
@@ -53,6 +50,8 @@ class NordpoolOptionsFlow(config_entries.OptionsFlow):
             vol.Required("tasakaal", default=get_val("tasakaal", DEFAULT_TASAKAAL)): vol.Coerce(float),
             vol.Required("varustus", default=get_val("varustus", DEFAULT_VARUSTUS)): vol.Coerce(float),
             vol.Required("vat", default=get_val("vat", DEFAULT_VAT)): vol.Coerce(float),
+            vol.Required("export_margin", default=get_val("export_margin", DEFAULT_EXPORT_MARGIN)): vol.Coerce(float),
+            vol.Required("export_tasakaal", default=get_val("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)): vol.Coerce(float),
         })
         
         return self.async_show_form(step_id="init", data_schema=schema)
