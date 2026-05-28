@@ -11,7 +11,20 @@ fit_ml_model:
         number:
           min: 9
           max: 365
-          mode: slider
+          mode: box
+    sklearn_model:
+      name: Scikit-Learn Model
+      description: The base ML algorithm to train.
+      required: false
+      default: KNeighborsRegressor
+      selector:
+        select:
+          options:
+            - KNeighborsRegressor
+            - RandomForestRegressor
+            - GradientBoostingRegressor
+            - RidgeRegression
+            - MLPRegressor
     num_lags:
       name: Number of Lags
       description: Autoregression lags. For 15-min intervals, 96 = 24 hours.
@@ -22,6 +35,44 @@ fit_ml_model:
           min: 1
           max: 192
           mode: box
+
+tune_ml_model:
+  name: Tune EMHASS ML Model
+  description: Uses Bayesian optimization to test different internal parameters and lag counts to find the most accurate model for your home. This process is very slow.
+  fields:
+    historic_days_to_retrieve:
+      name: Days of History
+      description: Number of historic days to retrieve from Home Assistant DB.
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 9
+          max: 365
+          mode: box
+    sklearn_model:
+      name: Scikit-Learn Model
+      description: The base ML algorithm to optimize.
+      required: false
+      default: KNeighborsRegressor
+      selector:
+        select:
+          options:
+            - KNeighborsRegressor
+            - RandomForestRegressor
+            - GradientBoostingRegressor
+            - RidgeRegression
+            - MLPRegressor
+    n_trials:
+      name: Optimization Trials
+      description: How many different combinations to test. Higher numbers find better scores but take significantly longer.
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 5
+          max: 100
+          mode: slider
 
 predict_ml_model:
   name: Predict EMHASS ML Model
