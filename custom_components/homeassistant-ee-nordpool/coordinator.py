@@ -54,7 +54,9 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "api_status_today": self.api_status_today,
             "api_status_tomorrow": self.api_status_tomorrow,
             "http_code_today": self.http_code_today,
-            "http_code_tomorrow": self.http_code_tomorrow
+            "http_code_tomorrow": self.http_code_tomorrow,
+            "last_poll_time": self.last_poll_time,
+            "next_poll_time": self.next_poll_time
         }
 
     async def _async_save_cache(self):
