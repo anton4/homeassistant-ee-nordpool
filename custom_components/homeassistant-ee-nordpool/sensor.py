@@ -12,7 +12,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolStateSensor(coordinator),
         NordpoolImportCostSensor(coordinator),
         NordpoolExportCostSensor(coordinator),
-        NordpoolLastPollSensor(coordinator) # New polling schedule tracking sensor
+        NordpoolLastPollSensor(coordinator),
+        NordpoolNextPollSensor(coordinator) # ADD THIS LINE
     ])
 
 class NordpoolBaseEntity(CoordinatorEntity):
@@ -171,3 +172,18 @@ class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
     def native_value(self):
         # Feeds HA a raw datetime object; HA automatically converts it to your localized frontend UI string
         return self.coordinator.last_poll_time
+
+# --- NEW: VISUAL COUNTDOWN TIMESTAMP SENSOR ---
+class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Next Poll Time"
+        self._attr_unique_id = "nordpool_next_poll_time_sensor"
+        self._attr_icon = "mdi:update"
+
+    @property
+    def native_value(self):
+        # Home Assistant automatically converts this future time into a localized countdown string in the UI
+        return self.coordinator.next_poll_time
