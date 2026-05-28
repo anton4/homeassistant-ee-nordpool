@@ -1,0 +1,32 @@
+fit_ml_model:
+  name: Fit EMHASS ML Model
+  description: Trains the EMHASS Machine Learning load forecaster using historical data.
+  fields:
+    historic_days_to_retrieve:
+      name: Days of History
+      description: Number of historic days to retrieve from Home Assistant DB.
+      required: false
+      default: 30
+      selector:
+        number:
+          min: 9
+          max: 365
+          mode: slider
+    num_lags:
+      name: Number of Lags
+      description: Autoregression lags. For 15-min intervals, 96 = 24 hours.
+      required: false
+      default: 96
+      selector:
+        number:
+          min: 1
+          max: 192
+          mode: box
+
+predict_ml_model:
+  name: Predict EMHASS ML Model
+  description: Triggers a prediction using the trained ML model and publishes it to a sensor.
+
+run_mpc_optim:
+  name: Run EMHASS MPC Optimization
+  description: Executes the naive-mpc-optim endpoint natively by compiling Nordpool, Solcast, and EV states via Python.
