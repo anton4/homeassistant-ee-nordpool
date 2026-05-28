@@ -22,20 +22,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
 
+    def get_max_lags():
+        """Calculates the absolute maximum prediction horizon to prevent ML lag crashes."""
+        # Check if FI extension is enabled in the coordinator
+        fi_days = coordinator.extend_fi_days if getattr(coordinator, 'extend_fi', False) else 0
+        
+        # Base 48 hours (192 steps) + FI extended days (96 steps per day)
+        max_horizon = 192 + (fi_days * 96)
+        return max_horizon
+
     async def handle_fit_ml_model(call: ServiceCall) -> dict:
+        auto_lags = get_max_lags()
         payload = {
             "historic_days_to_retrieve": call.data.get("historic_days_to_retrieve", 30),
             "model_type": "load_forecast",
             "var_model": "sensor.house_power_without_deferrable",
             "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
-            "num_lags": call.data.get("num_lags", 96)
+            "num_lags": auto_lags
         }
         try:
             async with async_timeout.timeout(3600):
                 resp = await session.post(f"{EMHASS_URL}/forecast-model-fit", json=payload)
                 resp.raise_for_status()
-                _LOGGER.info("EMHASS ML Model Fit initiated.")
-                return {"status": "success", "http_code": resp.status, "payload_sent": payload}
+                _LOGGER.info(f"EMHASS ML Model Fit initiated with {auto_lags} automated lags.")
+                return {"status": "success", "http_code": resp.status, "automated_lags": auto_lags, "payload_sent": payload}
         except Exception as e:
             _LOGGER.error("Failed to fit EMHASS ML model: %s", e)
             return {"status": "error", "error_message": str(e)}
@@ -61,7 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_predict_ml_model(call: ServiceCall) -> dict:
         payload = {
             "model_type": "load_forecast",
-            "var_model": "sensor.house_power_without_deferrable", # <-- Added enforcement
+            "var_model": "sensor.house_power_without_deferrable",
             "model_predict_publish": True,
             "model_predict_entity_id": "sensor.p_load_forecast_custom_model",
             "model_predict_unit_of_measurement": "W",
@@ -78,9 +88,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return {"status": "error", "error_message": str(e)}
 
     async def handle_run_mpc_optim(call: ServiceCall) -> dict:
-        extra_state = hass.states.get('input_number.emhass_extra_steps')
-        extra_steps = int(float(extra_state.state)) if extra_state else 0
-
         np_state = hass.states.get('sensor.nordpool_ee_prices_prices_from_now')
         import_prices = np_state.attributes.get('import_prices', []) if np_state else []
         export_prices = np_state.attributes.get('export_prices', []) if np_state else []
@@ -107,23 +114,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         timesteps = [int(float(timesteps_state.state))] if ev_enabled and timesteps_state else [0]
 
         load_cost = [round(p, 4) for p in import_prices]
-        if load_cost and extra_steps > 0:
-            load_cost.extend([(load_cost[-1] / 2.0)] * extra_steps)
-
         prod_price = [round(p, 4) for p in export_prices]
-        if prod_price and extra_steps > 0:
-            prod_price.extend([(prod_price[-1] / 2.0)] * extra_steps)
-
-        if extra_steps > 0:
-            pv_forecast.extend([0] * extra_steps)
 
         payload = {
             "load_cost_forecast": load_cost,
             "prod_price_forecast": prod_price,
-            "prediction_horizon": timestamps_left + extra_steps,
+            "prediction_horizon": timestamps_left,
             "pv_power_forecast": pv_forecast,
             "load_forecast_method": "mlforecaster",
-            "var_model": "sensor.house_power_without_deferrable", # <-- Added enforcement
+            "var_model": "sensor.house_power_without_deferrable",
             "soc_init": soc_init,
             "soc_final": soc_final,
             "number_of_deferrable_loads": 1,

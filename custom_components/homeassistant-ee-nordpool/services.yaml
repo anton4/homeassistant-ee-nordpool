@@ -1,6 +1,6 @@
 fit_ml_model:
   name: Fit EMHASS ML Model
-  description: Trains the EMHASS Machine Learning load forecaster using historical data.
+  description: Trains the EMHASS Machine Learning load forecaster using historical data. The model lag constraint is calculated automatically based on your maximum prediction horizon.
   fields:
     historic_days_to_retrieve:
       name: Days of History
@@ -25,16 +25,6 @@ fit_ml_model:
             - GradientBoostingRegressor
             - RidgeRegression
             - MLPRegressor
-    num_lags:
-      name: Number of Lags
-      description: Autoregression lags. For 15-min intervals, 96 = 24 hours.
-      required: false
-      default: 96
-      selector:
-        number:
-          min: 1
-          max: 192
-          mode: box
 
 tune_ml_model:
   name: Tune EMHASS ML Model
