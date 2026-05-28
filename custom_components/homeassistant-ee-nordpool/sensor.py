@@ -1,7 +1,8 @@
 import holidays
-import homeassistant.util.dt as dt_util
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.helpers.device_registry import DeviceInfo
+import homeassistant.util.dt as dt_util
 from .const import *
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -10,13 +11,27 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolPriceSensor(coordinator),
         NordpoolStateSensor(coordinator),
         NordpoolImportCostSensor(coordinator),
-        NordpoolExportCostSensor(coordinator)
+        NordpoolExportCostSensor(coordinator),
+        NordpoolLastPollSensor(coordinator) # New polling schedule tracking sensor
     ])
 
-class NordpoolPriceSensor(CoordinatorEntity, SensorEntity):
+class NordpoolBaseEntity(CoordinatorEntity):
+    """Base class to handle automatic integration page grouping via DeviceInfo."""
+    _attr_has_entity_name = True
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.entry.entry_id)},
+            name="Nordpool EE Prices",
+            manufacturer="Custom Scraper",
+            model="15-Minute Market Resolution",
+        )
+
+class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Nordpool Raw Prices EE"
+        self._attr_name = "Raw Prices"
         self._attr_unique_id = "nordpool_prices_ee_sensor"
         self._attr_icon = "mdi:lightning-bolt"
 
@@ -34,10 +49,10 @@ class NordpoolPriceSensor(CoordinatorEntity, SensorEntity):
             "last_poll_time": self.coordinator.last_poll_time.isoformat() if self.coordinator.last_poll_time else None
         }
 
-class NordpoolStateSensor(CoordinatorEntity, SensorEntity):
+class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Nordpool Prices State"
+        self._attr_name = "Prices State"
         self._attr_unique_id = "nordpool_prices_state_sensor"
         self._attr_icon = "mdi:list-status"
 
@@ -45,12 +60,10 @@ class NordpoolStateSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         return self.coordinator.data.get("state", "Waiting")
 
-
-# --- IMPORT COST SENSOR (RENAMED) ---
-class NordpoolImportCostSensor(CoordinatorEntity, SensorEntity):
+class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Nordpool Import Cost EE"
+        self._attr_name = "Import Cost"
         self._attr_unique_id = "nordpool_import_cost_ee_sensor"
         self._attr_icon = "mdi:transmission-tower-export"
         self.ee_holidays = holidays.country_holidays("EE")
@@ -104,12 +117,10 @@ class NordpoolImportCostSensor(CoordinatorEntity, SensorEntity):
 
         return {"prices": calculated_prices}
 
-
-# --- NEW EXPORT COST SENSOR ---
-class NordpoolExportCostSensor(CoordinatorEntity, SensorEntity):
+class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Nordpool Export Cost EE"
+        self._attr_name = "Export Cost"
         self._attr_unique_id = "nordpool_export_cost_ee_sensor"
         self._attr_icon = "mdi:transmission-tower-import"
 
@@ -135,7 +146,6 @@ class NordpoolExportCostSensor(CoordinatorEntity, SensorEntity):
         calculated_prices = []
 
         for p in raw_prices:
-            # Replicates your custom template math exactly: raw_value - export_margin - export_tasakaal
             final_value = p["value"] - ex_margin - ex_tasakaal
 
             calculated_prices.append({
@@ -145,3 +155,19 @@ class NordpoolExportCostSensor(CoordinatorEntity, SensorEntity):
             })
 
         return {"prices": calculated_prices}
+
+
+# --- NEW: VISUAL POLL CONFIRMATION TIMESTAMP SENSOR ---
+class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Last Poll Time"
+        self._attr_unique_id = "nordpool_last_poll_time_sensor"
+        self._attr_icon = "mdi:clock-check"
+
+    @property
+    def native_value(self):
+        # Feeds HA a raw datetime object; HA automatically converts it to your localized frontend UI string
+        return self.coordinator.last_poll_time
