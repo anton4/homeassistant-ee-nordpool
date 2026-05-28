@@ -230,7 +230,6 @@ class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
 
         return {"prices": calculated_prices}
 
-
 class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -242,6 +241,7 @@ class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
+        # Read directly from state memory instead of relying on data dictionary loops
         return self.coordinator.last_poll_time
 
 class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):

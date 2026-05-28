@@ -11,20 +11,20 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(title="Nordpool EE Prices", data=user_input)
 
         schema = vol.Schema({
-            vol.Required("fast_interval", default=5): vol.All(int, vol.Range(min=1, max=60)),
-            vol.Required("slow_interval", default=1): vol.All(int, vol.Range(min=1, max=24)),
-            vol.Required("margin", default=DEFAULT_MARGIN): vol.Coerce(float),
-            vol.Required("taastuv", default=DEFAULT_TAASTUV): vol.Coerce(float),
-            vol.Required("aktsiis", default=DEFAULT_AKTSIIS): vol.Coerce(float),
-            vol.Required("elektrilevi_day", default=DEFAULT_ELEKTRILEVI_DAY): vol.Coerce(float),
-            vol.Required("elektrilevi_night", default=DEFAULT_ELEKTRILEVI_NIGHT): vol.Coerce(float),
-            vol.Required("tasakaal", default=DEFAULT_TASAKAAL): vol.Coerce(float),
-            vol.Required("varustus", default=DEFAULT_VARUSTUS): vol.Coerce(float),
-            vol.Required("vat", default=DEFAULT_VAT): vol.Coerce(float),
-            vol.Required("export_margin", default=DEFAULT_EXPORT_MARGIN): vol.Coerce(float),
-            vol.Required("export_tasakaal", default=DEFAULT_EXPORT_TASAKAAL): vol.Coerce(float),
-            vol.Required("extend_fi", default=DEFAULT_EXTEND_FI): bool,
-            vol.Required("extend_fi_days", default=DEFAULT_EXTEND_FI_DAYS): vol.All(int, vol.Range(min=1, max=7)),
+            vol.Required("fast_interval", description={"suggested_value": "Fast Polling Interval (minutes)"}, default=5): vol.All(int, vol.Range(min=1, max=60)),
+            vol.Required("slow_interval", description={"suggested_value": "Slow Polling Interval (hours)"}, default=1): vol.All(int, vol.Range(min=1, max=24)),
+            vol.Required("margin", description={"suggested_value": "Broker Import Margin (€/kWh)"}, default=DEFAULT_MARGIN): vol.Coerce(float),
+            vol.Required("taastuv", description={"suggested_value": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)"}, default=DEFAULT_TAASTUV): vol.Coerce(float),
+            vol.Required("aktsiis", description={"suggested_value": "Electricity Excise / Elektriaktsiis (€/kWh)"}, default=DEFAULT_AKTSIIS): vol.Coerce(float),
+            vol.Required("elektrilevi_day", description={"suggested_value": "Elektrilevi Daytime Transmission Rate (€/kWh)"}, default=DEFAULT_ELEKTRILEVI_DAY): vol.Coerce(float),
+            vol.Required("elektrilevi_night", description={"suggested_value": "Elektrilevi Night/Weekend Transmission Rate (€/kWh)"}, default=DEFAULT_ELEKTRILEVI_NIGHT): vol.Coerce(float),
+            vol.Required("tasakaal", description={"suggested_value": "Import Balancing Fee / Tasakaalustusosa (€/kWh)"}, default=DEFAULT_TASAKAAL): vol.Coerce(float),
+            vol.Required("varustus", description={"suggested_value": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)"}, default=DEFAULT_VARUSTUS): vol.Coerce(float),
+            vol.Required("vat", description={"suggested_value": "Value Added Tax / Käibemaks (%)"}, default=DEFAULT_VAT): vol.Coerce(float),
+            vol.Required("export_margin", description={"suggested_value": "Broker Export Margin Deduction (€/kWh)"}, default=DEFAULT_EXPORT_MARGIN): vol.Coerce(float),
+            vol.Required("export_tasakaal", description={"suggested_value": "Export Balancing Service Fee (€/kWh)"}, default=DEFAULT_EXPORT_TASAKAAL): vol.Coerce(float),
+            vol.Required("extend_fi", description={"suggested_value": "Extend price profile using Finnish (FI) forecast model"}, default=DEFAULT_EXTEND_FI): bool,
+            vol.Required("extend_fi_days", description={"suggested_value": "Forecast Extension Window (Days, 1-7)"}, default=DEFAULT_EXTEND_FI_DAYS): vol.All(int, vol.Range(min=1, max=7)),
         })
         return self.async_show_form(step_id="user", data_schema=schema)
 
