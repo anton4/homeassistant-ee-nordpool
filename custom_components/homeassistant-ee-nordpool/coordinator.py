@@ -131,7 +131,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         try:
             session = async_get_clientsession(self.hass)
             
-            # Fetch Today's prices if missing OR if user manually forced a refresh
+            # Fetch Today's prices
             if needs_today_data or was_forced:
                 url_today = f"https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date={today.strftime('%Y-%m-%d')}&market=DayAhead&deliveryArea=EE&currency=EUR"
                 async with async_timeout.timeout(10):
@@ -139,16 +139,15 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                     resp_today.raise_for_status()
                     self._update_dict_from_json(await resp_today.json())
 
-            # Fetch Tomorrow's prices if inside the window OR if user manually forced a refresh
+            # Fetch Tomorrow's prices
             if not is_wait_window or was_forced:
                 tomorrow = today + timedelta(days=1)
                 url_tomorrow = f"https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date={tomorrow.strftime('%Y-%m-%d')}&market=DayAhead&deliveryArea=EE&currency=EUR"
                 
                 async with async_timeout.timeout(10):
                     resp_tom = await session.get(url_tomorrow)
-                    # If forcing early in the morning, tomorrow's endpoint might 404/404 out; catch gracefully
                     if was_forced and resp_tom.status in (404, 400):
-                        _LOGGER.info("Tomorrow's prices are not published on the API yet (HTTP %s). Skipping tomorrow's array.", resp_tom.status)
+                        _LOGGER.info("Tomorrow's prices are not published on the API yet (HTTP %s). Skipping tomorrow's array safely.", resp_tom.status)
                     else:
                         resp_tom.raise_for_status()
                         data_tom = await resp_tom.json()
@@ -171,6 +170,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Failed to fetch data: {e}")
 
     def _update_state(self, data):
+        if not data:
+            return
         areas_states = data.get("areaStates", [])
         state_str = self.current_state
         is_final = False
@@ -187,6 +188,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             self.tomorrow_final = True
 
     def _update_dict_from_json(self, data):
+        if not data:
+            return
         for entry in data.get("multiAreaEntries", []):
             start_str_z = entry.get("deliveryStart")
             end_str_z = entry.get("deliveryEnd")
