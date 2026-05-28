@@ -22,6 +22,12 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.next_poll_time = None
         self.last_date = None
         
+        # Diagnostic network states
+        self.api_status_today = "Not Polled"
+        self.api_status_tomorrow = "Not Polled"
+        self.http_code_today = None
+        self.http_code_tomorrow = None
+        
         # Flag to force-bypass early return restrictions
         self._force_next = False
         
@@ -44,7 +50,11 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         sorted_prices = sorted(self.price_dict.values(), key=lambda x: dt_util.parse_datetime(x["start"]))
         return {
             "prices": sorted_prices,
-            "state": self.current_state
+            "state": self.current_state,
+            "api_status_today": self.api_status_today,
+            "api_status_tomorrow": self.api_status_tomorrow,
+            "http_code_today": self.http_code_today,
+            "http_code_tomorrow": self.http_code_tomorrow
         }
 
     async def _async_save_cache(self):
@@ -88,6 +98,10 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             self.last_date = today
             self.tomorrow_final = False
             self.current_state = "Waiting"
+            self.api_status_today = "Reset"
+            self.api_status_tomorrow = "Reset"
+            self.http_code_today = None
+            self.http_code_tomorrow = None
             
             self.price_dict = {
                 k: v for k, v in self.price_dict.items() 
@@ -136,8 +150,20 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 url_today = f"https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date={today.strftime('%Y-%m-%d')}&market=DayAhead&deliveryArea=EE&currency=EUR"
                 async with async_timeout.timeout(10):
                     resp_today = await session.get(url_today)
-                    resp_today.raise_for_status()
-                    self._update_dict_from_json(await resp_today.json())
+                    self.http_code_today = resp_today.status
+                    
+                    if resp_today.status == 200:
+                        json_data = await resp_today.json()
+                        if json_data.get("multiAreaEntries"):
+                            self.api_status_today = "Success (Prices Loaded)"
+                            self._update_dict_from_json(json_data)
+                        else:
+                            self.api_status_today = "Success (Empty Array)"
+                    else:
+                        self.api_status_today = f"HTTP Error {resp_today.status}"
+                        resp_today.raise_for_status()
+            else:
+                self.api_status_today = "Skipped (Cached)"
 
             # Fetch Tomorrow's prices
             if not is_wait_window or was_forced:
@@ -146,13 +172,23 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 
                 async with async_timeout.timeout(10):
                     resp_tom = await session.get(url_tomorrow)
-                    if was_forced and resp_tom.status in (404, 400):
-                        _LOGGER.info("Tomorrow's prices are not published on the API yet (HTTP %s). Skipping tomorrow's array safely.", resp_tom.status)
+                    self.http_code_tomorrow = resp_tom.status
+                    
+                    if resp_tom.status in (404, 400):
+                        self.api_status_tomorrow = f"Not Found (HTTP {resp_tom.status}) - Not Published"
+                    elif resp_tom.status == 200:
+                        json_data = await resp_tom.json()
+                        if json_data.get("multiAreaEntries"):
+                            self.api_status_tomorrow = "Success (Prices Loaded)"
+                            self._update_dict_from_json(json_data)
+                            self._update_state(json_data)
+                        else:
+                            self.api_status_tomorrow = "Success (Empty Array)"
                     else:
+                        self.api_status_tomorrow = f"HTTP Error {resp_tom.status}"
                         resp_tom.raise_for_status()
-                        data_tom = await resp_tom.json()
-                        self._update_dict_from_json(data_tom)
-                        self._update_state(data_tom)
+            else:
+                self.api_status_tomorrow = "Skipped (Before 13:45 Window)"
             
             # Recalculate scheduled intervals
             if self.tomorrow_final:
@@ -166,6 +202,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             
         except Exception as e:
             _LOGGER.error("Nordpool scraping failed: %s", e)
+            self.api_status_today = f"Exception: {str(e)[:50]}"
+            self.api_status_tomorrow = f"Exception: {str(e)[:50]}"
             self.next_poll_time = now + timedelta(minutes=1)
             raise UpdateFailed(f"Failed to fetch data: {e}")
 

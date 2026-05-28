@@ -121,6 +121,16 @@ class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
     def native_value(self):
         return self.coordinator.data.get("state", "Waiting")
 
+    @property
+    def extra_state_attributes(self):
+        """Exposes clean diagnostic network feedback to the UI."""
+        return {
+            "http_code_today": self.coordinator.data.get("http_code_today"),
+            "status_today": self.coordinator.data.get("api_status_today", "Unknown"),
+            "http_code_tomorrow": self.coordinator.data.get("http_code_tomorrow"),
+            "status_tomorrow": self.coordinator.data.get("api_status_tomorrow", "Unknown")
+        }
+
 class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
