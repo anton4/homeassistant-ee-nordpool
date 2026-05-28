@@ -31,16 +31,14 @@ class NordpoolBaseEntity(CoordinatorEntity):
             model="15-Minute Market Resolution",
         )
 
-    def _get_merged_raw_prices(self):
-        """Merges EE prices with the FI Forecast if enabled."""
+def _get_merged_raw_prices(self):
+        """Merges EE prices with the FI Forecast if enabled via the toggle switch."""
         raw_prices = self.coordinator.data.get("prices", [])
         if not raw_prices:
             return []
 
-        def get_opt(key, default):
-            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
-
-        extend_fi = get_opt("extend_fi", DEFAULT_EXTEND_FI)
+        # Now reads directly from the live coordinator properties
+        extend_fi = self.coordinator.extend_fi
         if not extend_fi:
             return raw_prices
 
@@ -49,7 +47,7 @@ class NordpoolBaseEntity(CoordinatorEntity):
             return raw_prices
 
         merged = list(raw_prices)
-        extend_days = get_opt("extend_fi_days", DEFAULT_EXTEND_FI_DAYS)
+        extend_days = self.coordinator.extend_fi_days
         
         ee_end_dt = dt_util.parse_datetime(merged[-1]["end"])
         cutoff_dt = ee_end_dt + timedelta(days=extend_days)

@@ -23,8 +23,6 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             vol.Required("vat", description={"suggested_value": "Value Added Tax / Käibemaks (%)"}, default=DEFAULT_VAT): vol.Coerce(float),
             vol.Required("export_margin", description={"suggested_value": "Broker Export Margin Deduction (€/kWh)"}, default=DEFAULT_EXPORT_MARGIN): vol.Coerce(float),
             vol.Required("export_tasakaal", description={"suggested_value": "Export Balancing Service Fee (€/kWh)"}, default=DEFAULT_EXPORT_TASAKAAL): vol.Coerce(float),
-            vol.Required("extend_fi", description={"suggested_value": "Extend price profile using Finnish (FI) forecast model"}, default=DEFAULT_EXTEND_FI): bool,
-            vol.Required("extend_fi_days", description={"suggested_value": "Forecast Extension Window (Days, 1-7)"}, default=DEFAULT_EXTEND_FI_DAYS): vol.All(int, vol.Range(min=1, max=7)),
         })
         return self.async_show_form(step_id="user", data_schema=schema)
 
@@ -54,8 +52,6 @@ class NordpoolOptionsFlow(config_entries.OptionsFlow):
             vol.Required("vat", default=get_val("vat", DEFAULT_VAT)): vol.Coerce(float),
             vol.Required("export_margin", default=get_val("export_margin", DEFAULT_EXPORT_MARGIN)): vol.Coerce(float),
             vol.Required("export_tasakaal", default=get_val("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)): vol.Coerce(float),
-            vol.Required("extend_fi", default=get_val("extend_fi", DEFAULT_EXTEND_FI)): bool,
-            vol.Required("extend_fi_days", default=get_val("extend_fi_days", DEFAULT_EXTEND_FI_DAYS)): vol.All(int, vol.Range(min=1, max=7)),
         })
         
         return self.async_show_form(step_id="init", data_schema=schema)

@@ -22,15 +22,16 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.next_poll_time = None
         self.last_date = None
         
-        # Diagnostic network states
         self.api_status_today = "Not Polled"
         self.api_status_tomorrow = "Not Polled"
         self.http_code_today = None
         self.http_code_tomorrow = None
         
-        # Flag to force-bypass early return restrictions
-        self._force_next = False
+        # Interactive settings moved from config flow to state machine
+        self.extend_fi = False
+        self.extend_fi_days = 1
         
+        self._force_next = False
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded_from_disk = False
         
@@ -41,8 +42,19 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(minutes=1)
         )
 
+    # --- NEW SETTERS FOR THE INTERACTIVE ENTITIES ---
+    async def async_set_extend_fi(self, value: bool):
+        self.extend_fi = value
+        await self._async_save_cache()
+        await self.async_request_refresh()
+
+    async def async_set_extend_fi_days(self, value: int):
+        self.extend_fi_days = value
+        await self._async_save_cache()
+        await self.async_request_refresh()
+    # ------------------------------------------------
+
     async def async_request_refresh(self):
-        """Called directly by the force update button."""
         self._force_next = True
         await super().async_request_refresh()
 
@@ -66,7 +78,9 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "tomorrow_final": self.tomorrow_final,
             "last_date": self.last_date.isoformat() if self.last_date else None,
             "last_poll_time": self.last_poll_time.isoformat() if self.last_poll_time else None,
-            "next_poll_time": self.next_poll_time.isoformat() if self.next_poll_time else None
+            "next_poll_time": self.next_poll_time.isoformat() if self.next_poll_time else None,
+            "extend_fi": self.extend_fi,
+            "extend_fi_days": self.extend_fi_days
         })
 
     async def _async_update_data(self):
@@ -75,13 +89,14 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         today_start = dt_util.start_of_local_day()
         target_1345 = today_start + timedelta(hours=13, minutes=45)
         
-        # Load from disk cache on initial startup
         if not self._loaded_from_disk:
             cached_data = await self.store.async_load()
             if cached_data:
                 self.price_dict = cached_data.get("price_dict", {})
                 self.current_state = cached_data.get("current_state", "Waiting")
                 self.tomorrow_final = cached_data.get("tomorrow_final", False)
+                self.extend_fi = cached_data.get("extend_fi", False)
+                self.extend_fi_days = cached_data.get("extend_fi_days", 1)
                 
                 last_date_str = cached_data.get("last_date")
                 self.last_date = dt_util.parse_date(last_date_str) if last_date_str else None
@@ -92,10 +107,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 next_poll_str = cached_data.get("next_poll_time")
                 self.next_poll_time = dt_util.parse_datetime(next_poll_str) if next_poll_str else None
                 
-                _LOGGER.info("Nordpool cache loaded from disk successfully.")
             self._loaded_from_disk = True
         
-        # Midnight Reset
         if self.last_date != today:
             self.last_date = today
             self.tomorrow_final = False
@@ -105,10 +118,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             self.http_code_today = None
             self.http_code_tomorrow = None
             
-            self.price_dict = {
-                k: v for k, v in self.price_dict.items() 
-                if dt_util.parse_datetime(k) >= today_start
-            }
+            self.price_dict = {k: v for k, v in self.price_dict.items() if dt_util.parse_datetime(k) >= today_start}
             await self._async_save_cache()
 
         fast_min = self.entry.options.get("fast_interval", self.entry.data.get("fast_interval", 5))
@@ -116,10 +126,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
 
         is_wait_window = now < target_1345
         is_fast_window = (now >= target_1345) and (now < today_start + timedelta(hours=15))
-        
         needs_today_data = len([p for k, p in self.price_dict.items() if dt_util.parse_datetime(k).date() == today]) == 0
 
-        # GATING CHECKS: Only check them if NOT forced by the user button
         if not self._force_next:
             if self.tomorrow_final:
                 self.next_poll_time = target_1345 + timedelta(days=1)
@@ -136,24 +144,18 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                     self.next_poll_time = self.last_poll_time + threshold
                     return self._build_return_data()
 
-        # Reset force flag since we are executing now
         was_forced = self._force_next
         self._force_next = False
-
-        # Execute live update
         self.last_poll_time = now
-        _LOGGER.info("Nordpool Polling Executed (Forced=%s) at: %s", was_forced, now.isoformat())
         
         try:
             session = async_get_clientsession(self.hass)
             
-            # Fetch Today's prices
             if needs_today_data or was_forced:
                 url_today = f"https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date={today.strftime('%Y-%m-%d')}&market=DayAhead&deliveryArea=EE&currency=EUR"
                 async with async_timeout.timeout(10):
                     resp_today = await session.get(url_today)
                     self.http_code_today = resp_today.status
-                    
                     if resp_today.status == 200:
                         json_data = await resp_today.json()
                         if json_data.get("multiAreaEntries"):
@@ -167,15 +169,12 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             else:
                 self.api_status_today = "Skipped (Cached)"
 
-            # Fetch Tomorrow's prices
             if not is_wait_window or was_forced:
                 tomorrow = today + timedelta(days=1)
                 url_tomorrow = f"https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices?date={tomorrow.strftime('%Y-%m-%d')}&market=DayAhead&deliveryArea=EE&currency=EUR"
-                
                 async with async_timeout.timeout(10):
                     resp_tom = await session.get(url_tomorrow)
                     self.http_code_tomorrow = resp_tom.status
-                    
                     if resp_tom.status in (404, 400):
                         self.api_status_tomorrow = f"Not Found (HTTP {resp_tom.status}) - Not Published"
                     elif resp_tom.status == 200:
@@ -192,7 +191,6 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             else:
                 self.api_status_tomorrow = "Skipped (Before 13:45 Window)"
             
-            # Recalculate scheduled intervals
             if self.tomorrow_final:
                 self.next_poll_time = target_1345 + timedelta(days=1)
             else:
@@ -210,39 +208,28 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(f"Failed to fetch data: {e}")
 
     def _update_state(self, data):
-        if not data:
-            return
+        if not data: return
         areas_states = data.get("areaStates", [])
         state_str = self.current_state
         is_final = False
-        
         for st in areas_states:
             if "EE" in st.get("areas", []):
                 state_str = st.get("state", "Preliminary")
-                if state_str == "Final":
-                    is_final = True
+                if state_str == "Final": is_final = True
                 break
-        
         self.current_state = state_str
-        if is_final and len(data.get("multiAreaEntries", [])) > 0:
-            self.tomorrow_final = True
+        if is_final and len(data.get("multiAreaEntries", [])) > 0: self.tomorrow_final = True
 
     def _update_dict_from_json(self, data):
-        if not data:
-            return
+        if not data: return
         for entry in data.get("multiAreaEntries", []):
             start_str_z = entry.get("deliveryStart")
             end_str_z = entry.get("deliveryEnd")
-            
-            if not start_str_z or not end_str_z:
-                continue
-                
+            if not start_str_z or not end_str_z: continue
             start_dt = dt_util.parse_datetime(start_str_z)
             end_dt = dt_util.parse_datetime(end_str_z)
-            
             start_local = dt_util.as_local(start_dt)
             end_local = dt_util.as_local(end_dt)
-            
             val = entry.get("entryPerArea", {}).get("EE")
             if val is not None:
                 self.price_dict[start_local.isoformat()] = {
