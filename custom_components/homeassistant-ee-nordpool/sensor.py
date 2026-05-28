@@ -13,6 +13,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolStateSensor(coordinator),
         NordpoolImportCostSensor(coordinator),
         NordpoolExportCostSensor(coordinator),
+        NordpoolFromNowSensor(coordinator),
+        NordpoolSolcastSensor(coordinator), # New Solcast Array Sensor
         NordpoolLastPollSensor(coordinator),
         NordpoolNextPollSensor(coordinator)
     ])
@@ -35,7 +37,6 @@ class NordpoolBaseEntity(CoordinatorEntity):
         if not raw_prices:
             return []
 
-        # Retrieve user config
         def get_opt(key, default):
             return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
 
@@ -43,7 +44,6 @@ class NordpoolBaseEntity(CoordinatorEntity):
         if not extend_fi:
             return raw_prices
 
-        # Fetch external FI Sensor State
         fi_state = self.coordinator.hass.states.get("sensor.nordpool_predict_fi_price")
         if not fi_state or not fi_state.attributes.get("forecast"):
             return raw_prices
@@ -51,29 +51,22 @@ class NordpoolBaseEntity(CoordinatorEntity):
         merged = list(raw_prices)
         extend_days = get_opt("extend_fi_days", DEFAULT_EXTEND_FI_DAYS)
         
-        # Determine the exact timestamp where EE prices stop
         ee_end_dt = dt_util.parse_datetime(merged[-1]["end"])
         cutoff_dt = ee_end_dt + timedelta(days=extend_days)
 
         fi_forecast = fi_state.attributes.get("forecast")
 
         for item in fi_forecast:
-            # Convert UTC time to Local HA timezone
             fi_start_dt = dt_util.as_local(dt_util.parse_datetime(item["timestamp"]))
             fi_end_dt = fi_start_dt + timedelta(hours=1)
             
-            # Skip FI blocks that overlap with existing EE blocks
             if fi_end_dt <= ee_end_dt:
                 continue
-                
-            # Stop parsing if we hit the user's future day limit
             if fi_start_dt >= cutoff_dt:
                 break
                 
-            # Convert FI cents/kWh to EUR/kWh
             fi_value_eur = float(item["value"]) / 100.0
             
-            # Split the 1-hour block into four 15-minute blocks
             for i in range(4):
                 block_start = fi_start_dt + timedelta(minutes=15 * i)
                 block_end = block_start + timedelta(minutes=15)
@@ -83,10 +76,59 @@ class NordpoolBaseEntity(CoordinatorEntity):
                         "start": block_start.isoformat(),
                         "end": block_end.isoformat(),
                         "value": round(fi_value_eur, 5),
-                        "is_forecast": True # Tagged as forecast just in case
+                        "is_forecast": True
                     })
-                    
         return merged
+
+    def _get_calculated_prices(self, price_type):
+        """Centralized calculator for Import or Export math."""
+        raw_prices = self._get_merged_raw_prices()
+        if not raw_prices:
+            return []
+
+        def get_opt(key, default):
+            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
+
+        margin = get_opt("margin", DEFAULT_MARGIN)
+        taastuv = get_opt("taastuv", DEFAULT_TAASTUV)
+        aktsiis = get_opt("aktsiis", DEFAULT_AKTSIIS)
+        tasakaal = get_opt("tasakaal", DEFAULT_TASAKAAL)
+        varustus = get_opt("varustus", DEFAULT_VARUSTUS)
+        el_day = get_opt("elektrilevi_day", DEFAULT_ELEKTRILEVI_DAY)
+        el_night = get_opt("elektrilevi_night", DEFAULT_ELEKTRILEVI_NIGHT)
+        vat_percent = get_opt("vat", DEFAULT_VAT)
+
+        ex_margin = get_opt("export_margin", DEFAULT_EXPORT_MARGIN)
+        ex_tasakaal = get_opt("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)
+
+        ee_holidays = holidays.country_holidays("EE")
+        calculated_prices = []
+
+        for p in raw_prices:
+            start_dt = dt_util.parse_datetime(p["start"])
+            
+            if price_type == "import":
+                is_weekend = start_dt.weekday() in (5, 6)
+                is_night_hour = start_dt.hour < 7 or start_dt.hour >= 22
+                is_holiday = start_dt.date() in ee_holidays
+
+                if is_weekend or is_night_hour or is_holiday:
+                    tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_night
+                else:
+                    tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_day
+
+                final_value = (p["value"] + tariff) * (1.0 + (vat_percent / 100.0))
+            else:
+                final_value = p["value"] - ex_margin - ex_tasakaal
+
+            calculated_prices.append({
+                "start": p["start"],
+                "end": p["end"],
+                "value": round(final_value, 5),
+                "is_forecast": p.get("is_forecast", False)
+            })
+
+        return calculated_prices
 
 
 class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
@@ -123,7 +165,6 @@ class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Exposes clean diagnostic network feedback to the UI."""
         return {
             "http_code_today": self.coordinator.data.get("http_code_today"),
             "status_today": self.coordinator.data.get("api_status_today", "Unknown"),
@@ -137,58 +178,17 @@ class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
         self._attr_name = "Import Cost"
         self._attr_unique_id = "nordpool_import_cost_ee_sensor"
         self._attr_icon = "mdi:transmission-tower-export"
-        self.ee_holidays = holidays.country_holidays("EE")
 
     @property
     def native_value(self):
-        prices = self._get_merged_raw_prices()
+        prices = self._get_calculated_prices("import")
         if prices:
             return f"{len(prices)} calculated"
         return "Waiting for data"
 
     @property
     def extra_state_attributes(self):
-        # Now fetches the perfectly stitched EE + FI raw list
-        raw_prices = self._get_merged_raw_prices()
-        if not raw_prices:
-            return {"prices": []}
-
-        def get_opt(key, default):
-            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
-
-        margin = get_opt("margin", DEFAULT_MARGIN)
-        taastuv = get_opt("taastuv", DEFAULT_TAASTUV)
-        aktsiis = get_opt("aktsiis", DEFAULT_AKTSIIS)
-        tasakaal = get_opt("tasakaal", DEFAULT_TASAKAAL)
-        varustus = get_opt("varustus", DEFAULT_VARUSTUS)
-        el_day = get_opt("elektrilevi_day", DEFAULT_ELEKTRILEVI_DAY)
-        el_night = get_opt("elektrilevi_night", DEFAULT_ELEKTRILEVI_NIGHT)
-        vat_percent = get_opt("vat", DEFAULT_VAT)
-
-        calculated_prices = []
-
-        for p in raw_prices:
-            start_dt = dt_util.parse_datetime(p["start"])
-            
-            is_weekend = start_dt.weekday() in (5, 6)
-            is_night_hour = start_dt.hour < 7 or start_dt.hour >= 22
-            is_holiday = start_dt.date() in self.ee_holidays
-
-            if is_weekend or is_night_hour or is_holiday:
-                tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_night
-            else:
-                tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_day
-
-            final_value = (p["value"] + tariff) * (1.0 + (vat_percent / 100.0))
-
-            calculated_prices.append({
-                "start": p["start"],
-                "end": p["end"],
-                "value": round(final_value, 5),
-                "is_forecast": p.get("is_forecast", False)
-            })
-
-        return {"prices": calculated_prices}
+        return {"prices": self._get_calculated_prices("import")}
 
 class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
     def __init__(self, coordinator):
@@ -199,36 +199,117 @@ class NordpoolExportCostSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        prices = self._get_merged_raw_prices()
+        prices = self._get_calculated_prices("export")
         if prices:
             return f"{len(prices)} calculated"
         return "Waiting for data"
 
     @property
     def extra_state_attributes(self):
-        raw_prices = self._get_merged_raw_prices()
-        if not raw_prices:
-            return {"prices": []}
+        return {"prices": self._get_calculated_prices("export")}
 
-        def get_opt(key, default):
-            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
+class NordpoolFromNowSensor(NordpoolBaseEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Prices From Now"
+        self._attr_unique_id = "nordpool_prices_from_now_sensor"
+        self._attr_icon = "mdi:chart-timeline-variant-shimmer"
 
-        ex_margin = get_opt("export_margin", DEFAULT_EXPORT_MARGIN)
-        ex_tasakaal = get_opt("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)
+    @property
+    def native_value(self):
+        now = dt_util.now()
+        prices = self._get_calculated_prices("import")
+        future_prices = [p for p in prices if dt_util.parse_datetime(p["end"]) > now]
+        return len(future_prices)
 
-        calculated_prices = []
+    @property
+    def extra_state_attributes(self):
+        now = dt_util.now()
+        
+        import_prices = self._get_calculated_prices("import")
+        future_imports = [p["value"] for p in import_prices if dt_util.parse_datetime(p["end"]) > now]
+        
+        export_prices = self._get_calculated_prices("export")
+        future_exports = [p["value"] for p in export_prices if dt_util.parse_datetime(p["end"]) > now]
 
-        for p in raw_prices:
-            final_value = p["value"] - ex_margin - ex_tasakaal
+        return {
+            "timestamps_left": len(future_imports),
+            "import_prices": future_imports,
+            "export_prices": future_exports
+        }
 
-            calculated_prices.append({
-                "start": p["start"],
-                "end": p["end"],
-                "value": round(final_value, 5),
-                "is_forecast": p.get("is_forecast", False)
-            })
+# --- NEW SENSOR: SOLCAST 15-MINUTE ARRAY FORECAST ---
+class NordpoolSolcastSensor(NordpoolBaseEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Solcast Forecast 15min"
+        self._attr_unique_id = "nordpool_solcast_15min_sensor"
+        self._attr_icon = "mdi:solar-power"
 
-        return {"prices": calculated_prices}
+    @property
+    def native_value(self):
+        """Displays how many 15-minute periods are matched and loaded."""
+        return len(self._get_solcast_forecast())
+
+    @property
+    def extra_state_attributes(self):
+        """Outputs the perfectly sliced Watts array to match Nordpool timestamps."""
+        return {
+            "values": self._get_solcast_forecast()
+        }
+
+    def _get_solcast_forecast(self):
+        hass = self.coordinator.hass
+        now = dt_util.now()
+        
+        # 1. Get the forecast field dynamically (e.g., 'estimate', 'estimate10', 'estimate90')
+        field_select = hass.states.get('select.solcast_pv_forecast_use_forecast_field')
+        field_name = field_select.state if field_select else 'estimate'
+        forecast_use_field = f"pv_{field_name}"
+
+        # 2. Iterate through all potential 7 days of Solcast sensors
+        sensors = [
+            "sensor.solcast_pv_forecast_forecast_today",
+            "sensor.solcast_pv_forecast_forecast_tomorrow",
+            "sensor.solcast_pv_forecast_forecast_day_3",
+            "sensor.solcast_pv_forecast_forecast_day_4",
+            "sensor.solcast_pv_forecast_forecast_day_5",
+            "sensor.solcast_pv_forecast_forecast_day_6",
+            "sensor.solcast_pv_forecast_forecast_day_7"
+        ]
+
+        raw_30min_values = []
+        for sensor_id in sensors:
+            state = hass.states.get(sensor_id)
+            if state and 'detailedForecast' in state.attributes:
+                for item in state.attributes['detailedForecast']:
+                    # Extract the selected field, default to 0.0 if missing
+                    val = item.get(forecast_use_field, 0.0)
+                    raw_30min_values.append(val)
+
+        # 3. Convert 30-min block kW to two identical 15-min block Watts
+        values_15min_watts = []
+        dampener = 1
+        for val in raw_30min_values:
+            watts = int(float(val) * 1000) * dampener
+            values_15min_watts.extend([watts, watts])
+
+        # 4. Determine starting index and required length
+        intervals_since_midnight = (now.hour * 4) + (now.minute // 15)
+        
+        prices = self._get_calculated_prices("import")
+        future_prices = [p for p in prices if dt_util.parse_datetime(p["end"]) > now]
+        np_range = len(future_prices)
+
+        # 5. Slice the array directly to the active timeline window
+        sliced_values = values_15min_watts[intervals_since_midnight : intervals_since_midnight + np_range]
+
+        # 6. Safety check: Pad with 0s if FI extended prices stretch further than Solcast data length
+        while len(sliced_values) < np_range:
+            sliced_values.append(0)
+
+        return sliced_values
+
 
 class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
     _attr_device_class = SensorDeviceClass.TIMESTAMP
@@ -241,7 +322,6 @@ class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
 
     @property
     def native_value(self):
-        # Read directly from state memory instead of relying on data dictionary loops
         return self.coordinator.last_poll_time
 
 class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
