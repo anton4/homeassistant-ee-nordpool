@@ -9,7 +9,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
         NordpoolPriceSensor(coordinator),
         NordpoolStateSensor(coordinator),
-        NordpoolTotalCostSensor(coordinator)
+        NordpoolImportCostSensor(coordinator),
+        NordpoolExportCostSensor(coordinator)
     ])
 
 class NordpoolPriceSensor(CoordinatorEntity, SensorEntity):
@@ -44,12 +45,14 @@ class NordpoolStateSensor(CoordinatorEntity, SensorEntity):
     def native_value(self):
         return self.coordinator.data.get("state", "Waiting")
 
-class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
+
+# --- IMPORT COST SENSOR (RENAMED) ---
+class NordpoolImportCostSensor(CoordinatorEntity, SensorEntity):
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Nordpool Total Cost EE"
-        self._attr_unique_id = "nordpool_total_cost_ee_sensor"
-        self._attr_icon = "mdi:cash-multiple"
+        self._attr_name = "Nordpool Import Cost EE"
+        self._attr_unique_id = "nordpool_import_cost_ee_sensor"
+        self._attr_icon = "mdi:transmission-tower-export"
         self.ee_holidays = holidays.country_holidays("EE")
 
     @property
@@ -91,8 +94,49 @@ class NordpoolTotalCostSensor(CoordinatorEntity, SensorEntity):
             else:
                 tariff = margin + taastuv + aktsiis + tasakaal + varustus + el_day
 
-            # Math converted: (Price + Tariffs) * (1 + 24 / 100) -> multiplier becomes 1.24
             final_value = (p["value"] + tariff) * (1.0 + (vat_percent / 100.0))
+
+            calculated_prices.append({
+                "start": p["start"],
+                "end": p["end"],
+                "value": round(final_value, 5)
+            })
+
+        return {"prices": calculated_prices}
+
+
+# --- NEW EXPORT COST SENSOR ---
+class NordpoolExportCostSensor(CoordinatorEntity, SensorEntity):
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Nordpool Export Cost EE"
+        self._attr_unique_id = "nordpool_export_cost_ee_sensor"
+        self._attr_icon = "mdi:transmission-tower-import"
+
+    @property
+    def native_value(self):
+        prices = self.coordinator.data.get("prices", [])
+        if prices:
+            return f"{len(prices)} calculated"
+        return "Waiting for data"
+
+    @property
+    def extra_state_attributes(self):
+        raw_prices = self.coordinator.data.get("prices", [])
+        if not raw_prices:
+            return {"prices": []}
+
+        def get_opt(key, default):
+            return self.coordinator.entry.options.get(key, self.coordinator.entry.data.get(key, default))
+
+        ex_margin = get_opt("export_margin", DEFAULT_EXPORT_MARGIN)
+        ex_tasakaal = get_opt("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)
+
+        calculated_prices = []
+
+        for p in raw_prices:
+            # Replicates your custom template math exactly: raw_value - export_margin - export_tasakaal
+            final_value = p["value"] - ex_margin - ex_tasakaal
 
             calculated_prices.append({
                 "start": p["start"],

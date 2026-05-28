@@ -13,7 +13,9 @@
           "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
           "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
           "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
-          "vat": "VAT (%)"
+          "vat": "VAT (%)",
+          "export_margin": "Export Margin / Miinusmärk (€/kWh)",
+          "export_tasakaal": "Export Balancing Fee (€/kWh)"
         }
       }
     }
@@ -32,7 +34,9 @@
           "elektrilevi_night": "Elektrilevi Nighttime Transmission (€/kWh)",
           "tasakaal": "Balancing Service Fee / Tasakaalustusosa (€/kWh)",
           "varustus": "Security of Supply Fee / Systemaarne varustuskindlus (€/kWh)",
-          "vat": "VAT (%)"
+          "vat": "VAT (%)",
+          "export_margin": "Export Margin (€/kWh)",
+          "export_tasakaal": "Export Balancing Fee (€/kWh)"
         }
       }
     }
