@@ -27,7 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "historic_days_to_retrieve": call.data.get("historic_days_to_retrieve", 30),
             "model_type": "load_forecast",
             "var_model": "sensor.house_power_without_deferrable",
-            "sklearn_model": "KNeighborsRegressor",
+            "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
             "num_lags": call.data.get("num_lags", 96)
         }
         try:
@@ -40,9 +40,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Failed to fit EMHASS ML model: %s", e)
             return {"status": "error", "error_message": str(e)}
 
+    async def handle_tune_ml_model(call: ServiceCall) -> dict:
+        payload = {
+            "historic_days_to_retrieve": call.data.get("historic_days_to_retrieve", 30),
+            "model_type": "load_forecast",
+            "var_model": "sensor.house_power_without_deferrable",
+            "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
+            "n_trials": call.data.get("n_trials", 10)
+        }
+        try:
+            async with async_timeout.timeout(7200):
+                resp = await session.post(f"{EMHASS_URL}/forecast-model-tune", json=payload)
+                resp.raise_for_status()
+                _LOGGER.info("EMHASS ML Model Tune completed.")
+                return {"status": "success", "http_code": resp.status, "payload_sent": payload}
+        except Exception as e:
+            _LOGGER.error("Failed to tune EMHASS ML model: %s", e)
+            return {"status": "error", "error_message": str(e)}
+
     async def handle_predict_ml_model(call: ServiceCall) -> dict:
         payload = {
             "model_type": "load_forecast",
+            "var_model": "sensor.house_power_without_deferrable", # <-- Added enforcement
             "model_predict_publish": True,
             "model_predict_entity_id": "sensor.p_load_forecast_custom_model",
             "model_predict_unit_of_measurement": "W",
@@ -62,13 +81,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         extra_state = hass.states.get('input_number.emhass_extra_steps')
         extra_steps = int(float(extra_state.state)) if extra_state else 0
 
-        # CORRECTED ENTITY ID FOR NORDPOOL PRICES
         np_state = hass.states.get('sensor.nordpool_ee_prices_prices_from_now')
         import_prices = np_state.attributes.get('import_prices', []) if np_state else []
         export_prices = np_state.attributes.get('export_prices', []) if np_state else []
         timestamps_left = np_state.attributes.get('timestamps_left', 0) if np_state else 0
 
-        # CORRECTED ENTITY ID FOR SOLCAST FORECAST
         sc_state = hass.states.get('sensor.nordpool_ee_prices_solcast_forecast_15min')
         pv_forecast = list(sc_state.attributes.get('values', [])) if sc_state else []
 
@@ -106,6 +123,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "prediction_horizon": timestamps_left + extra_steps,
             "pv_power_forecast": pv_forecast,
             "load_forecast_method": "mlforecaster",
+            "var_model": "sensor.house_power_without_deferrable", # <-- Added enforcement
             "soc_init": soc_init,
             "soc_final": soc_final,
             "number_of_deferrable_loads": 1,
@@ -131,6 +149,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return {"status": "error", "error_message": str(e)}
 
     hass.services.async_register(DOMAIN, "fit_ml_model", handle_fit_ml_model, supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(DOMAIN, "tune_ml_model", handle_tune_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "predict_ml_model", handle_predict_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "run_mpc_optim", handle_run_mpc_optim, supports_response=SupportsResponse.OPTIONAL)
 
