@@ -16,9 +16,7 @@
           "varustus": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)",
           "vat": "Value Added Tax / Käibemaks (%)",
           "export_margin": "Broker Export Margin Deduction (€/kWh)",
-          "export_tasakaal": "Export Balancing Service Fee (€/kWh)",
-          "extend_fi": "Extend price profile using Finnish (FI) forecast model",
-          "extend_fi_days": "Forecast Extension Window (Days, 1-7)"
+          "export_tasakaal": "Export Balancing Service Fee (€/kWh)"
         }
       }
     }
@@ -40,9 +38,7 @@
           "varustus": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)",
           "vat": "Value Added Tax / Käibemaks (%)",
           "export_margin": "Broker Export Margin Deduction (€/kWh)",
-          "export_tasakaal": "Export Balancing Service Fee (€/kWh)",
-          "extend_fi": "Extend price profile using Finnish (FI) forecast model",
-          "extend_fi_days": "Forecast Extension Window (Days, 1-7)"
+          "export_tasakaal": "Export Balancing Service Fee (€/kWh)"
         }
       }
     }

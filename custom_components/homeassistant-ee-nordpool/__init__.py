@@ -3,7 +3,8 @@ from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN
 from .coordinator import NordpoolCoordinator
 
-PLATFORMS = ["sensor", "button"]
+# Added switch and number platforms
+PLATFORMS = ["sensor", "button", "switch", "number"]
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up the component from a ConfigEntry."""
