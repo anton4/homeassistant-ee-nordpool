@@ -36,8 +36,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     def get_history_needed():
         """Ensures EMHASS pulls enough days of history to satisfy the ML lags."""
         auto_lags = get_max_lags()
-        # auto_lags / 96 = days of lags. Add 2 extra days as a safety buffer.
         return max(7, int((auto_lags / 96) + 2))
+
+    def get_split_date_delta():
+        """Converts lags into hours so the test dataset length matches the prediction horizon."""
+        hours = int(get_max_lags() / 4)
+        return f"{hours}h"
 
     async def handle_fit_ml_model(call: ServiceCall) -> dict:
         auto_lags = get_max_lags()
@@ -46,7 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "model_type": "load_forecast",
             "var_model": "sensor.house_power_without_deferrable",
             "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
-            "num_lags": auto_lags
+            "num_lags": auto_lags,
+            "split_date_delta": get_split_date_delta() # <-- Forces Test data to match Lags
         }
         try:
             async with async_timeout.timeout(3600):
@@ -59,11 +64,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             return {"status": "error", "error_message": str(e)}
 
     async def handle_tune_ml_model(call: ServiceCall) -> dict:
+        auto_lags = get_max_lags()
         payload = {
             "historic_days_to_retrieve": call.data.get("historic_days_to_retrieve", 30),
             "model_type": "load_forecast",
             "var_model": "sensor.house_power_without_deferrable",
             "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
+            "num_lags": auto_lags,
+            "split_date_delta": get_split_date_delta(), # <-- Forces Test data to match Lags
             "n_trials": call.data.get("n_trials", 10)
         }
         try:
@@ -81,7 +89,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "model_type": "load_forecast",
             "var_model": "sensor.house_power_without_deferrable",
             "num_lags": get_max_lags(),
-            "historic_days_to_retrieve": get_history_needed(), # <-- Added safeguard
+            "historic_days_to_retrieve": get_history_needed(),
             "model_predict_publish": True,
             "model_predict_entity_id": "sensor.p_load_forecast_custom_model",
             "model_predict_unit_of_measurement": "W",
@@ -134,7 +142,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "load_forecast_method": "mlforecaster",
             "var_model": "sensor.house_power_without_deferrable",
             "num_lags": get_max_lags(),
-            "historic_days_to_retrieve": get_history_needed(), # <-- Added safeguard
+            "historic_days_to_retrieve": get_history_needed(),
             "delta_forecast_daily": get_delta_days(),
             "soc_init": soc_init,
             "soc_final": soc_final,
