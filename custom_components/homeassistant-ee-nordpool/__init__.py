@@ -51,7 +51,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "var_model": "sensor.house_power_without_deferrable",
             "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
             "num_lags": auto_lags,
-            "split_date_delta": get_split_date_delta() # <-- Forces Test data to match Lags
+            "split_date_delta": get_split_date_delta()
         }
         try:
             async with async_timeout.timeout(3600):
@@ -71,7 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "var_model": "sensor.house_power_without_deferrable",
             "sklearn_model": call.data.get("sklearn_model", "KNeighborsRegressor"),
             "num_lags": auto_lags,
-            "split_date_delta": get_split_date_delta(), # <-- Forces Test data to match Lags
+            "split_date_delta": get_split_date_delta(),
             "n_trials": call.data.get("n_trials", 10)
         }
         try:
@@ -150,7 +150,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "nominal_power_of_deferrable_loads": nominal_power,
             "operating_hours_of_each_deferrable_load": op_hours,
             "end_timesteps_of_each_deferrable_load": timesteps,
-            "set_deferrable_load_single_constant": [ev_force]
+            "set_deferrable_load_single_constant": [ev_force],
+            "publish_data": True # <-- This tells EMHASS to generate the SVG graphs
         }
 
         try:
