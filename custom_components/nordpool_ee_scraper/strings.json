@@ -7,6 +7,7 @@
         "data": {
           "fast_interval": "Fast Polling Interval (minutes)",
           "slow_interval": "Slow Polling Interval (hours)",
+          "api_key": "eupowerprices.com API Key (for EE forecast)",
           "margin": "Broker Import Margin (€/kWh)",
           "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
           "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",
@@ -29,6 +30,7 @@
         "data": {
           "fast_interval": "Fast Polling Interval (minutes)",
           "slow_interval": "Slow Polling Interval (hours)",
+          "api_key": "eupowerprices.com API Key (for EE forecast)",
           "margin": "Broker Import Margin (€/kWh)",
           "taastuv": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)",
           "aktsiis": "Electricity Excise / Elektriaktsiis (€/kWh)",

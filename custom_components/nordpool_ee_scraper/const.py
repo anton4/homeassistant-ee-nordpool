@@ -17,3 +17,13 @@ DEFAULT_EXPORT_TASAKAAL = 0.00373
 # FI Extension Defaults
 DEFAULT_EXTEND_FI = False
 DEFAULT_EXTEND_FI_DAYS = 1
+
+# Forecast source options (values shown/stored by the "Forecast Source" select entity)
+OPTION_NONE = "None"
+OPTION_FI = "Finland (FI)"
+OPTION_EE = "Estonia (EE)"
+FORECAST_OPTIONS = [OPTION_NONE, OPTION_FI, OPTION_EE]
+
+# eupowerprices.com EE price forecast API
+EE_FORECAST_URL = "https://api.eupowerprices.com/v1/forecasts/EE/latest"
+FORECAST_POLL_HOURS = 1

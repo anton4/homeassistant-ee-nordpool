@@ -32,47 +32,75 @@ class NordpoolBaseEntity(CoordinatorEntity):
         )
 
     def _get_merged_raw_prices(self):
-        """Merges EE prices with the FI Forecast if enabled via the toggle switch."""
+        """Extends the actual EE spot prices with the forecast selected via the Forecast Source entity."""
         raw_prices = self.coordinator.data.get("prices", [])
         if not raw_prices:
             return []
 
-        extend_fi = self.coordinator.extend_fi
-        if not extend_fi:
+        source = self.coordinator.forecast_source
+        if source == OPTION_FI:
+            hourly = self._get_fi_hourly()
+        elif source == OPTION_EE:
+            hourly = self._get_ee_hourly()
+        else:
             return raw_prices
 
+        if not hourly:
+            return raw_prices
+
+        return self._append_forecast(raw_prices, hourly)
+
+    def _get_fi_hourly(self):
+        """Reads the FI price forecast from an external sensor as (start_dt, €/kWh) tuples."""
         fi_state = self.coordinator.hass.states.get("sensor.nordpool_predict_fi_price")
         if not fi_state or not fi_state.attributes.get("forecast"):
-            return raw_prices
+            return []
 
+        hourly = []
+        for item in fi_state.attributes.get("forecast"):
+            start_dt = dt_util.parse_datetime(item["timestamp"])
+            if start_dt is None:
+                continue
+            # FI forecast values are published in cents/kWh.
+            hourly.append((dt_util.as_local(start_dt), float(item["value"]) / 100.0))
+        return hourly
+
+    def _get_ee_hourly(self):
+        """Reads the cached eupowerprices.com EE forecast as (start_dt, €/kWh) tuples."""
+        hourly = []
+        for item in self.coordinator.ee_forecast or []:
+            start_dt = dt_util.parse_datetime(item["start"])
+            if start_dt is None:
+                continue
+            # EE forecast values are already stored in €/kWh by the coordinator.
+            hourly.append((dt_util.as_local(start_dt), float(item["value"])))
+        return hourly
+
+    def _append_forecast(self, raw_prices, hourly):
+        """Appends hourly forecast values (expanded into 15-min blocks) after the last actual EE period."""
         merged = list(raw_prices)
         extend_days = self.coordinator.extend_fi_days
-        
+
         ee_end_dt = dt_util.parse_datetime(merged[-1]["end"])
         cutoff_dt = ee_end_dt + timedelta(days=extend_days)
 
-        fi_forecast = fi_state.attributes.get("forecast")
+        for start_dt, value_eur in hourly:
+            hour_end_dt = start_dt + timedelta(hours=1)
 
-        for item in fi_forecast:
-            fi_start_dt = dt_util.as_local(dt_util.parse_datetime(item["timestamp"]))
-            fi_end_dt = fi_start_dt + timedelta(hours=1)
-            
-            if fi_end_dt <= ee_end_dt:
+            if hour_end_dt <= ee_end_dt:
                 continue
-            if fi_start_dt >= cutoff_dt:
-                break
-                
-            fi_value_eur = float(item["value"]) / 100.0
-            
+            if start_dt >= cutoff_dt:
+                continue
+
             for i in range(4):
-                block_start = fi_start_dt + timedelta(minutes=15 * i)
+                block_start = start_dt + timedelta(minutes=15 * i)
                 block_end = block_start + timedelta(minutes=15)
-                
+
                 if block_start >= ee_end_dt and block_start < cutoff_dt:
                     merged.append({
                         "start": block_start.isoformat(),
                         "end": block_end.isoformat(),
-                        "value": round(fi_value_eur, 5),
+                        "value": round(value_eur, 5),
                         "is_forecast": True
                     })
         return merged
@@ -166,7 +194,10 @@ class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
             "http_code_today": self.coordinator.data.get("http_code_today"),
             "status_today": self.coordinator.data.get("api_status_today", "Unknown"),
             "http_code_tomorrow": self.coordinator.data.get("http_code_tomorrow"),
-            "status_tomorrow": self.coordinator.data.get("api_status_tomorrow", "Unknown")
+            "status_tomorrow": self.coordinator.data.get("api_status_tomorrow", "Unknown"),
+            "forecast_source": self.coordinator.data.get("forecast_source"),
+            "forecast_status": self.coordinator.data.get("forecast_status"),
+            "http_code_forecast": self.coordinator.data.get("http_code_forecast")
         }
 
 class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
