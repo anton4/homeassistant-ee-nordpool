@@ -11,7 +11,7 @@ class NordpoolExtendFIDaysNumber(NumberEntity):
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
-        self._attr_name = "FI Forecast Extend Days"
+        self._attr_name = "Forecast Extend Days"
         self._attr_unique_id = "nordpool_extend_fi_days_number"
         self._attr_icon = "mdi:calendar-expand-horizontal"
         self._attr_native_min_value = 1

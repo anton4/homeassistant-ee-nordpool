@@ -7,6 +7,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 import homeassistant.util.dt as dt_util
 
+from .const import OPTION_NONE, OPTION_FI, OPTION_EE, EE_FORECAST_URL, FORECAST_POLL_HOURS
+
 _LOGGER = logging.getLogger(__name__)
 
 STORAGE_VERSION = 1
@@ -28,9 +30,16 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.http_code_tomorrow = None
         
         # Interactive settings moved from config flow to state machine
-        self.extend_fi = False
+        self.forecast_source = OPTION_NONE
         self.extend_fi_days = 1
-        
+
+        # eupowerprices.com EE price forecast state
+        self.api_key = entry.options.get("api_key", entry.data.get("api_key", ""))
+        self.ee_forecast = []
+        self.last_forecast_poll = None
+        self.forecast_status = "Not Polled"
+        self.http_code_forecast = None
+
         self._force_next = False
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded_from_disk = False
@@ -43,8 +52,8 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         )
 
     # --- NEW SETTERS FOR THE INTERACTIVE ENTITIES ---
-    async def async_set_extend_fi(self, value: bool):
-        self.extend_fi = value
+    async def async_set_forecast_source(self, value: str):
+        self.forecast_source = value
         await self._async_save_cache()
         await self.async_request_refresh()
 
@@ -68,7 +77,10 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "http_code_today": self.http_code_today,
             "http_code_tomorrow": self.http_code_tomorrow,
             "last_poll_time": self.last_poll_time,
-            "next_poll_time": self.next_poll_time
+            "next_poll_time": self.next_poll_time,
+            "forecast_source": self.forecast_source,
+            "forecast_status": self.forecast_status,
+            "http_code_forecast": self.http_code_forecast
         }
 
     async def _async_save_cache(self):
@@ -79,9 +91,50 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "last_date": self.last_date.isoformat() if self.last_date else None,
             "last_poll_time": self.last_poll_time.isoformat() if self.last_poll_time else None,
             "next_poll_time": self.next_poll_time.isoformat() if self.next_poll_time else None,
-            "extend_fi": self.extend_fi,
-            "extend_fi_days": self.extend_fi_days
+            "forecast_source": self.forecast_source,
+            "extend_fi_days": self.extend_fi_days,
+            "ee_forecast": self.ee_forecast,
+            "last_forecast_poll": self.last_forecast_poll.isoformat() if self.last_forecast_poll else None
         })
+
+    async def _fetch_ee_forecast(self, force=False):
+        """Fetch the eupowerprices.com EE price forecast (throttled hourly)."""
+        if self.forecast_source != OPTION_EE or not self.api_key:
+            return
+
+        now = dt_util.now()
+        if not force and self.last_forecast_poll is not None:
+            if (now - self.last_forecast_poll) < timedelta(hours=FORECAST_POLL_HOURS):
+                return
+
+        try:
+            session = async_get_clientsession(self.hass)
+            headers = {"X-API-Key": self.api_key}
+            async with async_timeout.timeout(15):
+                resp = await session.get(EE_FORECAST_URL, headers=headers)
+                self.http_code_forecast = resp.status
+                if resp.status == 200:
+                    data = await resp.json()
+                    parsed = []
+                    for item in data.get("series", []):
+                        start_dt = dt_util.parse_datetime(item.get("ts_utc"))
+                        price = item.get("price_eur_mwh")
+                        if start_dt is None or price is None:
+                            continue
+                        start_local = dt_util.as_local(start_dt)
+                        parsed.append({
+                            "start": start_local.isoformat(),
+                            "value": round(float(price) / 1000.0, 5)
+                        })
+                    self.ee_forecast = parsed
+                    self.forecast_status = f"Success ({len(parsed)} points)"
+                    self.last_forecast_poll = now
+                    await self._async_save_cache()
+                else:
+                    self.forecast_status = f"HTTP Error {resp.status}"
+        except Exception as e:
+            _LOGGER.error("EE forecast fetch failed: %s", e)
+            self.forecast_status = f"Exception: {str(e)[:50]}"
 
     async def _async_update_data(self):
         now = dt_util.now()
@@ -95,9 +148,15 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 self.price_dict = cached_data.get("price_dict", {})
                 self.current_state = cached_data.get("current_state", "Waiting")
                 self.tomorrow_final = cached_data.get("tomorrow_final", False)
-                self.extend_fi = cached_data.get("extend_fi", False)
+                self.forecast_source = cached_data.get(
+                    "forecast_source",
+                    OPTION_FI if cached_data.get("extend_fi") else OPTION_NONE
+                )
                 self.extend_fi_days = cached_data.get("extend_fi_days", 1)
-                
+                self.ee_forecast = cached_data.get("ee_forecast", [])
+                last_fc_str = cached_data.get("last_forecast_poll")
+                self.last_forecast_poll = dt_util.parse_datetime(last_fc_str) if last_fc_str else None
+
                 last_date_str = cached_data.get("last_date")
                 self.last_date = dt_util.parse_date(last_date_str) if last_date_str else None
                 
@@ -108,7 +167,10 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 self.next_poll_time = dt_util.parse_datetime(next_poll_str) if next_poll_str else None
                 
             self._loaded_from_disk = True
-        
+
+        # Refresh the EE price forecast on its own hourly cadence (no-op unless selected).
+        await self._fetch_ee_forecast(self._force_next)
+
         if self.last_date != today:
             self.last_date = today
             self.tomorrow_final = False

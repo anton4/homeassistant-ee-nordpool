@@ -3,12 +3,12 @@ import async_timeout
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN
+from .const import DOMAIN, OPTION_NONE
 from .coordinator import NordpoolCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "button", "switch", "number"]
+PLATFORMS = ["sensor", "button", "select", "number"]
 EMHASS_URL = "http://localhost:5001/action"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -22,16 +22,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
 
+    def get_extend_days():
+        """Extra forecast days currently in play (0 unless a forecast source is selected)."""
+        active = getattr(coordinator, 'forecast_source', OPTION_NONE) != OPTION_NONE
+        return coordinator.extend_fi_days if active else 0
+
     def get_max_lags():
         """Calculates the absolute maximum prediction horizon to prevent ML lag crashes."""
-        fi_days = coordinator.extend_fi_days if getattr(coordinator, 'extend_fi', False) else 0
-        max_horizon = 192 + (fi_days * 96)
+        max_horizon = 192 + (get_extend_days() * 96)
         return max_horizon
 
     def get_delta_days():
         """Calculates the max daily horizon limit to prevent EMHASS from clipping the arrays."""
-        fi_days = coordinator.extend_fi_days if getattr(coordinator, 'extend_fi', False) else 0
-        return 2 + fi_days
+        return 2 + get_extend_days()
         
     def get_history_needed():
         """Ensures EMHASS pulls enough days of history to satisfy the ML lags."""
