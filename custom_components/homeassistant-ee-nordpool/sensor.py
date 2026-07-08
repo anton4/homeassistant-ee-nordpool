@@ -27,6 +27,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolSolcastSensor(coordinator),
         NordpoolLastPollSensor(coordinator),
         NordpoolNextPollSensor(coordinator),
+        NordpoolEeForecastSensor(coordinator),
         NordpoolEmhassNextRunSensor(coordinator),
     ]
     for service_key, label in EMHASS_SERVICE_LABELS.items():
@@ -386,6 +387,39 @@ class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.coordinator.next_poll_time
+
+
+class NordpoolEeForecastSensor(NordpoolBaseEntity, SensorEntity):
+    """Status of the eupowerprices.com Estonian (EE) price forecast source."""
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "EE Price Forecast"
+        self._attr_unique_id = "nordpool_ee_forecast_sensor"
+        self._attr_icon = "mdi:crystal-ball"
+
+    @property
+    def native_value(self):
+        """Inactive unless the Forecast Source is Estonia (EE); otherwise the fetch status."""
+        if self.coordinator.forecast_source != OPTION_EE:
+            return "Inactive"
+        return self.coordinator.forecast_status or "Not polled yet"
+
+    @property
+    def extra_state_attributes(self):
+        last = self.coordinator.last_forecast_poll
+        return {
+            "active": self.coordinator.forecast_source == OPTION_EE,
+            "forecast_source": self.coordinator.forecast_source,
+            "provider": "eupowerprices.com",
+            "api": EE_FORECAST_URL,
+            "api_key_set": bool(self.coordinator.api_key),
+            "http_code": self.coordinator.http_code_forecast,
+            "points": len(self.coordinator.ee_forecast or []),
+            "last_fetch": last.isoformat() if last else None,
+            "forecast": self.coordinator.ee_forecast or [],
+        }
 
 
 class NordpoolEmhassNextRunSensor(NordpoolBaseEntity, SensorEntity):

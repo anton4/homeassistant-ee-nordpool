@@ -84,6 +84,7 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 | `sensor.nordpool_ee_prices_prices_state` | Day-Ahead Publish Status | `Waiting` / `Preliminary` / `Final` — Nordpool's publication status for tomorrow's EE prices | `nordpool_api`, `delivery_area`, `currency`, `status_today`, `http_code_today`, `status_tomorrow`, `http_code_tomorrow`, `forecast_source`, `forecast_api`, `forecast_status`, `http_code_forecast` |
 | `sensor.nordpool_ee_prices_last_poll_time` | Last Nordpool Poll | timestamp of the last actual fetch from the Nordpool API | — |
 | `sensor.nordpool_ee_prices_next_poll_time` | Next Nordpool Poll | timestamp of the next scheduled fetch | — |
+| `sensor.nordpool_ee_prices_ee_forecast` | EE Price Forecast | `Inactive`, or the eupowerprices.com fetch status (e.g. `Success (387 points)`) | `active`, `forecast_source`, `provider`, `api`, `api_key_set`, `http_code`, `points`, `last_fetch`, `forecast` (the raw hourly forecast) |
 | `sensor.nordpool_ee_prices_emhass_next_run` | EMHASS Next Run | timestamp (ETA of next auto MPC) | `auto_mpc_enabled`, `interval_minutes`, `last_scheduled_run` |
 | `sensor.nordpool_ee_prices_emhass_last_mpc` | EMHASS Last MPC | timestamp of last MPC call | `status`, `http_code`, `duration_seconds`, `error`, `response`, `payload` |
 | `sensor.nordpool_ee_prices_emhass_last_publish` | EMHASS Last Publish | timestamp of last publish-data call | *(same as above)* |
@@ -119,9 +120,13 @@ Fetches the EE price forecast from the [eupowerprices.com](https://eupowerprices
 
 * **Endpoint:** `GET https://api.eupowerprices.com/v1/forecasts/EE/latest`
 * **Auth:** `X-API-Key: <your key>` header — set the key in the integration's configuration (see below).
-* **Data:** hourly `series` in `EUR/MWh`; the coordinator converts to `€/kWh`, stores it, and refreshes it about once per hour (or immediately when you switch the source or press Force Update).
+* **Data:** hourly `series` in `EUR/MWh`; the coordinator converts to `€/kWh`, stores it, and refreshes it about once per hour (or immediately when you switch the source or press *Fetch Nordpool Prices Now*).
 
-The API status is surfaced on the **Prices State** sensor's attributes (`forecast_status`, `http_code_forecast`). If no API key is configured, selecting **Estonia (EE)** simply yields no extension.
+**How to turn it on (two steps — the API key alone does nothing):**
+1. Enter your key in the integration's **Configure** dialog → *eupowerprices.com API key*.
+2. Set the **Forecast Source** select entity to **Estonia (EE)**.
+
+The integration only calls the eupowerprices.com API while the source is set to Estonia (EE). Its status is shown on the dedicated **EE Price Forecast** diagnostic sensor (`sensor.nordpool_ee_prices_ee_forecast`): the state reads `Inactive` until you select Estonia (EE), then shows the fetch status (e.g. `Success (387 points)`), with attributes for `api_key_set`, `http_code`, `points`, `last_fetch`, and the raw `forecast`. (The same fields also appear on the *Day-Ahead Publish Status* sensor.) If no API key is configured, selecting **Estonia (EE)** yields no extension and the sensor shows the error.
 
 ### Solcast PV forecast reshaping
 The **Solcast Forecast 15min** sensor reads the standard [Solcast HA integration](https://github.com/BJReplay/ha-solcast-solar) sensors:
