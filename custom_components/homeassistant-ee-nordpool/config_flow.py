@@ -19,7 +19,7 @@ def _num(min_val=None, max_val=None, step=1, unit=None):
 
 def _build_schema(get):
     """Build the shared config/options schema. `get(key, default)` supplies the field default."""
-    fee = dict(min_val=0, step=0.00001, unit="€/kWh")
+    fee = dict(min_val=0, step="any", unit="€/kWh")
     return vol.Schema({
         vol.Required("fast_interval", default=get("fast_interval", 5)): _num(1, 60, 1, "min"),
         vol.Required("slow_interval", default=get("slow_interval", 1)): _num(1, 24, 1, "h"),
