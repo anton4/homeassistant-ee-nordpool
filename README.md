@@ -2,7 +2,7 @@
 
 A custom Home Assistant integration that fetches 15-minute interval Nordpool Day-Ahead electricity prices for the Estonian (`EE`) delivery area. On top of the raw spot price it computes real-time **Import Costs** (Elektrilevi transmission, excise, renewable-energy and balancing fees, and VAT) and **Export Costs** (for net-metering solar/battery setups), can **extend the price curve into the future** using either a Finnish (FI) price forecast or an Estonian (EE) price forecast from [eupowerprices.com](https://eupowerprices.com), reshapes **Solcast** PV forecasts into the same 15-minute grid, and exposes a set of **EMHASS** services for machine-learning load forecasting and battery/EV Model Predictive Control (MPC) optimization.
 
-> **Integration domain:** `nordpool_ee_scraper` — the folder inside `custom_components/` **must** be named `nordpool_ee_scraper` for Home Assistant to load it (see [Installation](#installation)).
+> **Integration domain:** `nordpool_ee_scraper`. HACS installs the integration into `config/custom_components/nordpool_ee_scraper/` automatically (it uses the `domain` from `manifest.json`, not this repo's folder name). Manual installers must copy the folder and name it `nordpool_ee_scraper` (see [Installation](#installation)).
 
 ---
 
@@ -201,11 +201,11 @@ Every EMHASS call — whether triggered by the schedule, by an automation, or ma
 ### Method 2: Manual Installation
 
 1. Download / clone this repository.
-2. Copy the `nordpool_ee_scraper` folder from this repo's `custom_components/` into your Home Assistant `config/custom_components/` directory:
+2. Copy the integration folder from this repo's `custom_components/homeassistant-ee-nordpool/` into your Home Assistant config, **renaming it to the domain**:
    ```text
    config/custom_components/nordpool_ee_scraper/
    ```
-   (The folder name must remain `nordpool_ee_scraper` — Home Assistant requires the directory name to equal the integration domain.)
+   (Home Assistant requires the installed directory name to equal the integration domain `nordpool_ee_scraper`. HACS does this rename for you; manual installers must do it by hand.)
 3. Restart Home Assistant.
 
 ---
