@@ -1,7 +1,41 @@
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 from .const import *
+
+
+def _num(min_val=None, max_val=None, step=1, unit=None):
+    """A number input rendered as a box, with an inline unit suffix."""
+    cfg = {"step": step, "mode": selector.NumberSelectorMode.BOX}
+    if min_val is not None:
+        cfg["min"] = min_val
+    if max_val is not None:
+        cfg["max"] = max_val
+    if unit is not None:
+        cfg["unit_of_measurement"] = unit
+    return selector.NumberSelector(cfg)
+
+
+def _build_schema(get):
+    """Build the shared config/options schema. `get(key, default)` supplies the field default."""
+    fee = dict(min_val=0, step=0.00001, unit="€/kWh")
+    return vol.Schema({
+        vol.Required("fast_interval", default=get("fast_interval", 5)): _num(1, 60, 1, "min"),
+        vol.Required("slow_interval", default=get("slow_interval", 1)): _num(1, 24, 1, "h"),
+        vol.Optional("api_key", default=get("api_key", "")): str,
+        vol.Required("margin", default=get("margin", DEFAULT_MARGIN)): _num(**fee),
+        vol.Required("taastuv", default=get("taastuv", DEFAULT_TAASTUV)): _num(**fee),
+        vol.Required("aktsiis", default=get("aktsiis", DEFAULT_AKTSIIS)): _num(**fee),
+        vol.Required("elektrilevi_day", default=get("elektrilevi_day", DEFAULT_ELEKTRILEVI_DAY)): _num(**fee),
+        vol.Required("elektrilevi_night", default=get("elektrilevi_night", DEFAULT_ELEKTRILEVI_NIGHT)): _num(**fee),
+        vol.Required("tasakaal", default=get("tasakaal", DEFAULT_TASAKAAL)): _num(**fee),
+        vol.Required("varustus", default=get("varustus", DEFAULT_VARUSTUS)): _num(**fee),
+        vol.Required("vat", default=get("vat", DEFAULT_VAT)): _num(0, 100, 0.1, "%"),
+        vol.Required("export_margin", default=get("export_margin", DEFAULT_EXPORT_MARGIN)): _num(**fee),
+        vol.Required("export_tasakaal", default=get("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)): _num(**fee),
+    })
+
 
 class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -10,27 +44,14 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             return self.async_create_entry(title="Nordpool EE Prices", data=user_input)
 
-        schema = vol.Schema({
-            vol.Required("fast_interval", description={"suggested_value": "Fast Polling Interval (minutes)"}, default=5): vol.All(int, vol.Range(min=1, max=60)),
-            vol.Required("slow_interval", description={"suggested_value": "Slow Polling Interval (hours)"}, default=1): vol.All(int, vol.Range(min=1, max=24)),
-            vol.Optional("api_key", description={"suggested_value": "eupowerprices.com API Key (for EE forecast)"}, default=""): str,
-            vol.Required("margin", description={"suggested_value": "Broker Import Margin (€/kWh)"}, default=DEFAULT_MARGIN): vol.Coerce(float),
-            vol.Required("taastuv", description={"suggested_value": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)"}, default=DEFAULT_TAASTUV): vol.Coerce(float),
-            vol.Required("aktsiis", description={"suggested_value": "Electricity Excise / Elektriaktsiis (€/kWh)"}, default=DEFAULT_AKTSIIS): vol.Coerce(float),
-            vol.Required("elektrilevi_day", description={"suggested_value": "Elektrilevi Daytime Transmission Rate (€/kWh)"}, default=DEFAULT_ELEKTRILEVI_DAY): vol.Coerce(float),
-            vol.Required("elektrilevi_night", description={"suggested_value": "Elektrilevi Night/Weekend Transmission Rate (€/kWh)"}, default=DEFAULT_ELEKTRILEVI_NIGHT): vol.Coerce(float),
-            vol.Required("tasakaal", description={"suggested_value": "Import Balancing Fee / Tasakaalustusosa (€/kWh)"}, default=DEFAULT_TASAKAAL): vol.Coerce(float),
-            vol.Required("varustus", description={"suggested_value": "Security of Supply Fee / Varustuskindluse tasu (€/kWh)"}, default=DEFAULT_VARUSTUS): vol.Coerce(float),
-            vol.Required("vat", description={"suggested_value": "Value Added Tax / Käibemaks (%)"}, default=DEFAULT_VAT): vol.Coerce(float),
-            vol.Required("export_margin", description={"suggested_value": "Broker Export Margin Deduction (€/kWh)"}, default=DEFAULT_EXPORT_MARGIN): vol.Coerce(float),
-            vol.Required("export_tasakaal", description={"suggested_value": "Export Balancing Service Fee (€/kWh)"}, default=DEFAULT_EXPORT_TASAKAAL): vol.Coerce(float),
-        })
+        schema = _build_schema(lambda key, default: default)
         return self.async_show_form(step_id="user", data_schema=schema)
 
     @staticmethod
     @callback
     def async_get_options_flow(config_entry):
         return NordpoolOptionsFlow()
+
 
 class NordpoolOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
@@ -40,20 +61,4 @@ class NordpoolOptionsFlow(config_entries.OptionsFlow):
         def get_val(key, default):
             return self.config_entry.options.get(key, self.config_entry.data.get(key, default))
 
-        schema = vol.Schema({
-            vol.Required("fast_interval", default=get_val("fast_interval", 5)): vol.All(int, vol.Range(min=1, max=60)),
-            vol.Required("slow_interval", default=get_val("slow_interval", 1)): vol.All(int, vol.Range(min=1, max=24)),
-            vol.Optional("api_key", default=get_val("api_key", "")): str,
-            vol.Required("margin", default=get_val("margin", DEFAULT_MARGIN)): vol.Coerce(float),
-            vol.Required("taastuv", default=get_val("taastuv", DEFAULT_TAASTUV)): vol.Coerce(float),
-            vol.Required("aktsiis", default=get_val("aktsiis", DEFAULT_AKTSIIS)): vol.Coerce(float),
-            vol.Required("elektrilevi_day", default=get_val("elektrilevi_day", DEFAULT_ELEKTRILEVI_DAY)): vol.Coerce(float),
-            vol.Required("elektrilevi_night", default=get_val("elektrilevi_night", DEFAULT_ELEKTRILEVI_NIGHT)): vol.Coerce(float),
-            vol.Required("tasakaal", default=get_val("tasakaal", DEFAULT_TASAKAAL)): vol.Coerce(float),
-            vol.Required("varustus", default=get_val("varustus", DEFAULT_VARUSTUS)): vol.Coerce(float),
-            vol.Required("vat", default=get_val("vat", DEFAULT_VAT)): vol.Coerce(float),
-            vol.Required("export_margin", default=get_val("export_margin", DEFAULT_EXPORT_MARGIN)): vol.Coerce(float),
-            vol.Required("export_tasakaal", default=get_val("export_tasakaal", DEFAULT_EXPORT_TASAKAAL)): vol.Coerce(float),
-        })
-        
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=_build_schema(get_val))
