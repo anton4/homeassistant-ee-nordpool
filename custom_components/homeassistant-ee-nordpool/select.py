@@ -1,5 +1,6 @@
 from homeassistant.components.select import SelectEntity
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN, FORECAST_OPTIONS
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -7,7 +8,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([NordpoolForecastSourceSelect(coordinator)])
 
 class NordpoolForecastSourceSelect(SelectEntity):
+    """Which forecast extends the price curve beyond the last published EE hour."""
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         self.coordinator = coordinator

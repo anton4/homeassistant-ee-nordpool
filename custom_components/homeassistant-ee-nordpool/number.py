@@ -1,5 +1,6 @@
 from homeassistant.components.number import NumberEntity
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -10,13 +11,15 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ])
 
 class NordpoolExtendFIDaysNumber(NumberEntity):
+    """How many days beyond the last actual EE hour to extend using the selected forecast."""
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self._attr_name = "Forecast Extend Days"
         self._attr_unique_id = "nordpool_extend_fi_days_number"
-        self._attr_icon = "mdi:calendar-expand-horizontal"
+        self._attr_icon = "mdi:calendar-range"
         self._attr_native_min_value = 1
         self._attr_native_max_value = 7
         self._attr_native_step = 1
@@ -40,13 +43,15 @@ class NordpoolExtendFIDaysNumber(NumberEntity):
 
 
 class NordpoolEmhassMpcIntervalNumber(NumberEntity):
+    """Minutes between automatic EMHASS MPC runs (used when EMHASS Auto MPC is on)."""
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
         self._attr_name = "EMHASS MPC Interval"
         self._attr_unique_id = "nordpool_emhass_mpc_interval_number"
-        self._attr_icon = "mdi:timer-cog"
+        self._attr_icon = "mdi:timer-outline"
         self._attr_native_min_value = 1
         self._attr_native_max_value = 120
         self._attr_native_step = 1

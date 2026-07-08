@@ -65,16 +65,25 @@ All entities are grouped under a single **Nordpool EE Prices** device, so their 
 
 ### Sensors
 
+On the device page, Home Assistant groups these into **Sensors** (primary data), **Diagnostic** (polling/status/EMHASS-run info), **Configuration** (behaviour toggles), and **Controls** (actions), so each entity's role is clear at a glance. Entity IDs below are the stable IDs for an existing install.
+
+#### Sensors (primary data)
+
 | Entity ID | Name | State | Key Attributes |
 | --- | --- | --- | --- |
-| `sensor.nordpool_ee_prices_raw_prices` | Raw Prices | `N periods loaded` | `prices` (full array of `{start, end, value}`, incl. forecast blocks), `last_poll_time` |
-| `sensor.nordpool_ee_prices_prices_state` | Prices State | `Waiting` / `Preliminary` / `Final` | `status_today`, `http_code_today`, `status_tomorrow`, `http_code_tomorrow`, `forecast_source`, `forecast_status`, `http_code_forecast` |
+| `sensor.nordpool_ee_prices_raw_prices` | Raw Prices | `N periods loaded` | `prices` (full `{start,end,value}` array, incl. forecast blocks), `source`, `delivery_area`, `currency`, `unit`, `forecast_source`, `last_poll_time` |
 | `sensor.nordpool_ee_prices_import_cost` | Import Cost | `N calculated` | `prices` (import cost per period, incl. VAT & transmission) |
 | `sensor.nordpool_ee_prices_export_cost` | Export Cost | `N calculated` | `prices` (export yield per period) |
 | `sensor.nordpool_ee_prices_prices_from_now` | Prices From Now | count of remaining 15-min periods | `timestamps_left`, `import_prices`, `export_prices` (future-only value arrays; consumed by EMHASS MPC) |
 | `sensor.nordpool_ee_prices_solcast_forecast_15min` | Solcast Forecast 15min | count of forecast values | `values` (PV power forecast in **W**, 15-min resolution, aligned to the remaining price horizon) |
-| `sensor.nordpool_ee_prices_last_poll_time` | Last Poll Time | timestamp | — |
-| `sensor.nordpool_ee_prices_next_poll_time` | Next Poll Time | timestamp | — |
+
+#### Diagnostic (status & polling — grouped under "Diagnostic")
+
+| Entity ID | Name | State | Key Attributes |
+| --- | --- | --- | --- |
+| `sensor.nordpool_ee_prices_prices_state` | Day-Ahead Publish Status | `Waiting` / `Preliminary` / `Final` — Nordpool's publication status for tomorrow's EE prices | `nordpool_api`, `delivery_area`, `currency`, `status_today`, `http_code_today`, `status_tomorrow`, `http_code_tomorrow`, `forecast_source`, `forecast_api`, `forecast_status`, `http_code_forecast` |
+| `sensor.nordpool_ee_prices_last_poll_time` | Last Nordpool Poll | timestamp of the last actual fetch from the Nordpool API | — |
+| `sensor.nordpool_ee_prices_next_poll_time` | Next Nordpool Poll | timestamp of the next scheduled fetch | — |
 | `sensor.nordpool_ee_prices_emhass_next_run` | EMHASS Next Run | timestamp (ETA of next auto MPC) | `auto_mpc_enabled`, `interval_minutes`, `last_scheduled_run` |
 | `sensor.nordpool_ee_prices_emhass_last_mpc` | EMHASS Last MPC | timestamp of last MPC call | `status`, `http_code`, `duration_seconds`, `error`, `response`, `payload` |
 | `sensor.nordpool_ee_prices_emhass_last_publish` | EMHASS Last Publish | timestamp of last publish-data call | *(same as above)* |
@@ -82,15 +91,17 @@ All entities are grouped under a single **Nordpool EE Prices** device, so their 
 | `sensor.nordpool_ee_prices_emhass_last_tune` | EMHASS Last Tune | timestamp of last tune call | *(same as above)* |
 | `sensor.nordpool_ee_prices_emhass_last_predict` | EMHASS Last Predict | timestamp of last predict call | *(same as above)* |
 
-### Controls
+### Controls & Configuration
 
-| Entity ID | Type | Purpose |
-| --- | --- | --- |
-| `button.nordpool_ee_prices_force_update_prices` | Button | Force an immediate poll, bypassing polling throttles. |
-| `select.nordpool_ee_prices_forecast_source` | Select | Choose the active forecast source: **None**, **Finland (FI)**, or **Estonia (EE)**. |
-| `number.nordpool_ee_prices_forecast_extend_days` | Number (1–7) | How many days beyond the last actual EE hour to extend using the selected forecast. |
-| `switch.nordpool_ee_prices_emhass_auto_mpc` | Switch | Enable/disable the integration's automatic EMHASS MPC schedule. |
-| `number.nordpool_ee_prices_emhass_mpc_interval` | Number (1–120 min) | Minutes between automatic MPC runs. |
+| Entity ID | Name | Group | Purpose |
+| --- | --- | --- | --- |
+| `button.nordpool_ee_prices_force_update_prices` | Fetch Nordpool Prices Now | Controls | Immediately fetch today's + tomorrow's day-ahead prices from the Nordpool API (and the EE forecast if that source is selected), bypassing the fast/slow throttle. |
+| `select.nordpool_ee_prices_forecast_source` | Forecast Source | Config | Choose the active forecast source: **None**, **Finland (FI)**, or **Estonia (EE)**. |
+| `number.nordpool_ee_prices_forecast_extend_days` | Forecast Extend Days | Config | How many days beyond the last actual EE hour to extend using the selected forecast (1–7). |
+| `switch.nordpool_ee_prices_emhass_auto_mpc` | EMHASS Auto MPC | Config | Enable/disable the integration's automatic EMHASS MPC schedule. |
+| `number.nordpool_ee_prices_emhass_mpc_interval` | EMHASS MPC Interval | Config | Minutes between automatic MPC runs (1–120). |
+
+> **What "Fetch Nordpool Prices Now" does:** it calls the public Nordpool Day-Ahead REST API (`dataportal-api.nordpoolgroup.com`) for the EE area immediately — there is no HTML scraping. Normally the integration polls that API on the fast/slow schedule; this button just forces a poll right now. The API source and last/next poll times are visible on the **Day-Ahead Publish Status**, **Last Nordpool Poll** and **Next Nordpool Poll** entities, and every actual poll is written to the Home Assistant log at INFO level.
 
 ---
 
