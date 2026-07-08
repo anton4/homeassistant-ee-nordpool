@@ -70,4 +70,8 @@ predict_ml_model:
 
 run_mpc_optim:
   name: Run EMHASS MPC Optimization
-  description: Executes the naive-mpc-optim endpoint natively by compiling Nordpool, Solcast, and EV states via Python.
+  description: Executes the naive-mpc-optim endpoint natively by compiling Nordpool, Solcast, and EV states via Python. Automatically calls publish-data afterwards so the p_* result sensors are created/updated.
+
+publish_data:
+  name: Publish EMHASS Data
+  description: Calls the EMHASS publish-data action, which creates/updates the result sensors (sensor.p_load_forecast, p_batt_forecast, p_deferrable0, p_grid_forecast, p_pv_forecast, soc_batt_forecast, ...) from the latest optimization. Runs automatically after each MPC optimization; call it on its own to refresh the current-timestamp values in between optim runs.

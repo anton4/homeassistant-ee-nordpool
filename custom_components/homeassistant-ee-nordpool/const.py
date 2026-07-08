@@ -32,9 +32,10 @@ FORECAST_POLL_HOURS = 1
 DEFAULT_EMHASS_AUTO_MPC = False
 DEFAULT_EMHASS_MPC_INTERVAL = 15  # minutes between automatic MPC runs
 
-# EMHASS services whose last run is tracked, mapped to a friendly sensor name
+# EMHASS services/actions whose last run is tracked, mapped to a friendly sensor name
 EMHASS_SERVICE_LABELS = {
     "run_mpc_optim": "EMHASS Last MPC",
+    "publish_data": "EMHASS Last Publish",
     "fit_ml_model": "EMHASS Last Fit",
     "tune_ml_model": "EMHASS Last Tune",
     "predict_ml_model": "EMHASS Last Predict",

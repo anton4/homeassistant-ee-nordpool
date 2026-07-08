@@ -160,16 +160,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "nominal_power_of_deferrable_loads": nominal_power,
             "operating_hours_of_each_deferrable_load": op_hours,
             "end_timesteps_of_each_deferrable_load": timesteps,
-            "set_deferrable_load_single_constant": [ev_force],
-            "publish_data": True # <-- This tells EMHASS to generate the SVG graphs
+            "set_deferrable_load_single_constant": [ev_force]
         }
 
-        return await call_emhass("run_mpc_optim", "naive-mpc-optim", payload, 180)
+        result = await call_emhass("run_mpc_optim", "naive-mpc-optim", payload, 180)
+        # The optim computes the schedule and draws the EMHASS figures/table, but only
+        # publish-data creates/updates the p_* HA sensors (p_load_forecast, p_batt_forecast,
+        # p_deferrable0, p_grid_forecast, p_pv_forecast, ...). Chain it so the figures and the
+        # sensors refresh together on every run.
+        if result.get("status") == "success":
+            result["publish"] = await call_emhass("publish_data", "publish-data", {}, 60)
+        return result
+
+    async def handle_publish_data(call: ServiceCall) -> dict:
+        return await call_emhass("publish_data", "publish-data", {}, 60)
 
     hass.services.async_register(DOMAIN, "fit_ml_model", handle_fit_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "tune_ml_model", handle_tune_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "predict_ml_model", handle_predict_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "run_mpc_optim", handle_run_mpc_optim, supports_response=SupportsResponse.OPTIONAL)
+    hass.services.async_register(DOMAIN, "publish_data", handle_publish_data, supports_response=SupportsResponse.OPTIONAL)
 
     return True
 
