@@ -77,6 +77,7 @@ All entities are grouped under a single **Nordpool EE Prices** device, so their 
 | `sensor.nordpool_ee_prices_next_poll_time` | Next Poll Time | timestamp | — |
 | `sensor.nordpool_ee_prices_emhass_next_run` | EMHASS Next Run | timestamp (ETA of next auto MPC) | `auto_mpc_enabled`, `interval_minutes`, `last_scheduled_run` |
 | `sensor.nordpool_ee_prices_emhass_last_mpc` | EMHASS Last MPC | timestamp of last MPC call | `status`, `http_code`, `duration_seconds`, `error`, `response`, `payload` |
+| `sensor.nordpool_ee_prices_emhass_last_publish` | EMHASS Last Publish | timestamp of last publish-data call | *(same as above)* |
 | `sensor.nordpool_ee_prices_emhass_last_fit` | EMHASS Last Fit | timestamp of last fit call | *(same as above)* |
 | `sensor.nordpool_ee_prices_emhass_last_tune` | EMHASS Last Tune | timestamp of last tune call | *(same as above)* |
 | `sensor.nordpool_ee_prices_emhass_last_predict` | EMHASS Last Predict | timestamp of last predict call | *(same as above)* |
@@ -134,7 +135,8 @@ The integration registers four services (domain `nordpool_ee_scraper`) that talk
 | `nordpool_ee_scraper.fit_ml_model` | `/action/forecast-model-fit` | Train the ML load forecaster on Home Assistant history. |
 | `nordpool_ee_scraper.tune_ml_model` | `/action/forecast-model-tune` | Bayesian hyperparameter/lag search (slow). |
 | `nordpool_ee_scraper.predict_ml_model` | `/action/forecast-model-predict` | Predict and publish load to `sensor.p_load_forecast_custom_model`. |
-| `nordpool_ee_scraper.run_mpc_optim` | `/action/naive-mpc-optim` | Run the battery + EV charging MPC optimization. |
+| `nordpool_ee_scraper.run_mpc_optim` | `/action/naive-mpc-optim` (+ `/action/publish-data`) | Run the battery + EV charging MPC optimization, then publish the result sensors. |
+| `nordpool_ee_scraper.publish_data` | `/action/publish-data` | Publish/refresh the EMHASS result sensors from the latest optimization. |
 
 #### `fit_ml_model` / `tune_ml_model` fields
 | Field | Default | Notes |
@@ -169,7 +171,9 @@ This service assembles a full `naive-mpc-optim` payload from live Home Assistant
 | `sensor.ev_operating_hours` | `operating_hours_of_each_deferrable_load` |
 | `sensor.ev_charging_timesteps` | `end_timesteps_of_each_deferrable_load` |
 
-It passes `publish_data: true` so EMHASS generates its result graphs. The battery deficit penalty (`battery_soc_deficit_threshold` / `battery_soc_deficit_cost`) is intentionally **not** sent — configure it in the EMHASS add-on's own configuration so the UI values are used.
+The battery deficit penalty (`battery_soc_deficit_threshold` / `battery_soc_deficit_cost`) is intentionally **not** sent — configure it in the EMHASS add-on's own configuration so the UI values are used.
+
+**Publishing the result sensors.** In EMHASS, running the optimization and publishing HA sensors are two separate actions: `naive-mpc-optim` computes the schedule and draws the figures/table shown in the EMHASS UI, but only `publish-data` creates/updates the result sensors (`sensor.p_load_forecast`, `p_grid_forecast`, `p_batt_forecast`, `p_pv_forecast`, `p_deferrable0`, `soc_batt_forecast`, …). So `run_mpc_optim` automatically calls `publish-data` right after a successful optim — the figures and the sensors refresh together every run, which avoids the "EMHASS tab vs. ApexCharts" flip-flop caused by the two getting out of sync. You can also call the standalone `publish_data` service on a shorter schedule to advance the current-timestamp values between optim runs (or enable EMHASS's own `continual_publish`). Note: `sensor.p_load_forecast_custom_model` is published separately by the `predict_ml_model` service, not by the MPC run.
 
 All four services return a response (`SupportsResponse.OPTIONAL`) containing `status`, the HTTP code, the payload that was sent, and the EMHASS response body — useful for debugging from **Developer Tools → Actions**.
 
@@ -183,7 +187,7 @@ Rather than triggering `run_mpc_optim` from your own automation, the integration
 
 The scheduler is evaluated on the coordinator's 1-minute tick: when enabled, it fires `run_mpc_optim` whenever `now − last_run ≥ interval`. It survives restarts (the last run time and settings are cached to disk). If you enable this, remove any external automation that was calling `run_mpc_optim`, or MPC will run twice.
 
-Every EMHASS call — whether triggered by the schedule, by an automation, or manually — records its outcome, surfaced as timestamp sensors (`EMHASS Last MPC / Fit / Tune / Predict`). Each carries the last call's `status`, `http_code`, `duration_seconds`, `error`, a bounded excerpt of the EMHASS `response`, and the `payload` that was sent, so you can see exactly what happened without digging through logs.
+Every EMHASS call — whether triggered by the schedule, by an automation, or manually — records its outcome, surfaced as timestamp sensors (`EMHASS Last MPC / Publish / Fit / Tune / Predict`). Each carries the last call's `status`, `http_code`, `duration_seconds`, `error`, a bounded excerpt of the EMHASS `response`, and the `payload` that was sent, so you can see exactly what happened without digging through logs.
 
 ---
 
