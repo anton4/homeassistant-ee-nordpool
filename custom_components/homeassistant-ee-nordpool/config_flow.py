@@ -23,7 +23,9 @@ def _build_schema(get):
     return vol.Schema({
         vol.Required("fast_interval", default=get("fast_interval", 5)): _num(1, 60, 1, "min"),
         vol.Required("slow_interval", default=get("slow_interval", 1)): _num(1, 24, 1, "h"),
-        vol.Optional("api_key", default=get("api_key", "")): str,
+        vol.Optional("api_key", default=get("api_key", "")): selector.TextSelector(
+            selector.TextSelectorConfig(type=selector.TextSelectorType.TEXT)
+        ),
         vol.Required("margin", default=get("margin", DEFAULT_MARGIN)): _num(**fee),
         vol.Required("taastuv", default=get("taastuv", DEFAULT_TAASTUV)): _num(**fee),
         vol.Required("aktsiis", default=get("aktsiis", DEFAULT_AKTSIIS)): _num(**fee),

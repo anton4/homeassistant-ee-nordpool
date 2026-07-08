@@ -22,7 +22,7 @@
         "data_description": {
           "fast_interval": "Minutes between retries while waiting for tomorrow's prices during the 13:45–15:00 publish window.",
           "slow_interval": "Hours between normal price refreshes the rest of the day.",
-          "api_key": "Optional — only needed for the Estonia (EE) forecast source. Leave blank if unused.",
+          "api_key": "Only needed if you set the Forecast Source to Estonia (EE). Get a key from eupowerprices.com and paste it here; leave blank otherwise.",
           "margin": "Retailer/broker margin added to the spot price (€/kWh).",
           "taastuv": "Renewable energy fee added to the spot price (€/kWh).",
           "aktsiis": "Electricity excise added to the spot price (€/kWh).",
@@ -60,7 +60,7 @@
         "data_description": {
           "fast_interval": "Minutes between retries while waiting for tomorrow's prices during the 13:45–15:00 publish window.",
           "slow_interval": "Hours between normal price refreshes the rest of the day.",
-          "api_key": "Optional — only needed for the Estonia (EE) forecast source. Leave blank if unused.",
+          "api_key": "Only needed if you set the Forecast Source to Estonia (EE). Get a key from eupowerprices.com and paste it here; leave blank otherwise.",
           "margin": "Retailer/broker margin added to the spot price (€/kWh).",
           "taastuv": "Renewable energy fee added to the spot price (€/kWh).",
           "aktsiis": "Electricity excise added to the spot price (€/kWh).",
