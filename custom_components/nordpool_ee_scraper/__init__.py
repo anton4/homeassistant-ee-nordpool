@@ -161,8 +161,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "operating_hours_of_each_deferrable_load": op_hours,
             "end_timesteps_of_each_deferrable_load": timesteps,
             "set_deferrable_load_single_constant": [ev_force],
-            "battery_soc_deficit_threshold": 0.3,
-            "battery_soc_deficit_cost": 1.5,
             "publish_data": True # <-- This tells EMHASS to generate the SVG graphs
         }
 

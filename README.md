@@ -169,7 +169,7 @@ This service assembles a full `naive-mpc-optim` payload from live Home Assistant
 | `sensor.ev_operating_hours` | `operating_hours_of_each_deferrable_load` |
 | `sensor.ev_charging_timesteps` | `end_timesteps_of_each_deferrable_load` |
 
-It also sets a battery deficit penalty (`battery_soc_deficit_threshold = 0.3`, `battery_soc_deficit_cost = 1.5`) so the optimizer is discouraged from leaving the battery below 30% SOC, and passes `publish_data: true` so EMHASS generates its result graphs.
+It passes `publish_data: true` so EMHASS generates its result graphs. The battery deficit penalty (`battery_soc_deficit_threshold` / `battery_soc_deficit_cost`) is intentionally **not** sent — configure it in the EMHASS add-on's own configuration so the UI values are used.
 
 All four services return a response (`SupportsResponse.OPTIONAL`) containing `status`, the HTTP code, the payload that was sent, and the EMHASS response body — useful for debugging from **Developer Tools → Actions**.
 
