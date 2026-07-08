@@ -4,16 +4,16 @@ from .const import DOMAIN
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([NordpoolExtendFISwitch(coordinator)])
+    async_add_entities([NordpoolEmhassAutoMpcSwitch(coordinator)])
 
-class NordpoolExtendFISwitch(SwitchEntity):
+class NordpoolEmhassAutoMpcSwitch(SwitchEntity):
     _attr_has_entity_name = True
 
     def __init__(self, coordinator):
         self.coordinator = coordinator
-        self._attr_name = "Extend with FI Forecast"
-        self._attr_unique_id = "nordpool_extend_fi_switch"
-        self._attr_icon = "mdi:chart-timeline"
+        self._attr_name = "EMHASS Auto MPC"
+        self._attr_unique_id = "nordpool_emhass_auto_mpc_switch"
+        self._attr_icon = "mdi:robot"
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -26,12 +26,12 @@ class NordpoolExtendFISwitch(SwitchEntity):
 
     @property
     def is_on(self):
-        return self.coordinator.extend_fi
+        return self.coordinator.emhass_auto_mpc
 
     async def async_turn_on(self, **kwargs):
-        """Enable FI tracking and force all sensors to recalculate."""
-        await self.coordinator.async_set_extend_fi(True)
+        """Enable the automatic MPC schedule."""
+        await self.coordinator.async_set_emhass_auto_mpc(True)
 
     async def async_turn_off(self, **kwargs):
-        """Disable FI tracking and force all sensors to recalculate."""
-        await self.coordinator.async_set_extend_fi(False)
+        """Disable the automatic MPC schedule."""
+        await self.coordinator.async_set_emhass_auto_mpc(False)
