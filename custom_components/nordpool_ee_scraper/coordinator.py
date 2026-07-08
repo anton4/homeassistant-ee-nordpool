@@ -7,7 +7,12 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 import homeassistant.util.dt as dt_util
 
-from .const import OPTION_NONE, OPTION_FI, OPTION_EE, EE_FORECAST_URL, FORECAST_POLL_HOURS
+from .const import (
+    DOMAIN,
+    OPTION_NONE, OPTION_FI, OPTION_EE,
+    EE_FORECAST_URL, FORECAST_POLL_HOURS,
+    DEFAULT_EMHASS_AUTO_MPC, DEFAULT_EMHASS_MPC_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +45,13 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.forecast_status = "Not Polled"
         self.http_code_forecast = None
 
+        # EMHASS scheduling + last-run debug state
+        self.emhass_auto_mpc = DEFAULT_EMHASS_AUTO_MPC
+        self.emhass_mpc_interval = DEFAULT_EMHASS_MPC_INTERVAL
+        self.emhass_last_mpc = None   # when the scheduler last fired MPC
+        self.emhass_next_mpc = None   # computed ETA of the next scheduled MPC run
+        self.emhass_runs = {}         # per-service last-call debug info
+
         self._force_next = False
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded_from_disk = False
@@ -61,7 +73,54 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.extend_fi_days = value
         await self._async_save_cache()
         await self.async_request_refresh()
+
+    async def async_set_emhass_auto_mpc(self, value: bool):
+        self.emhass_auto_mpc = value
+        await self._async_save_cache()
+        await self.async_request_refresh()
+
+    async def async_set_emhass_mpc_interval(self, value: int):
+        self.emhass_mpc_interval = value
+        await self._async_save_cache()
+        await self.async_request_refresh()
     # ------------------------------------------------
+
+    async def record_emhass_run(self, service, *, status, http_code=None,
+                                response=None, payload=None, error=None, duration=None):
+        """Store the outcome of an EMHASS API call so it can be surfaced as debug sensors."""
+        self.emhass_runs[service] = {
+            "last_run": dt_util.now().isoformat(),
+            "status": status,
+            "http_code": http_code,
+            "duration_seconds": round(duration, 2) if duration is not None else None,
+            "error": error,
+            # Responses can be very large (optimization tables / SVG); keep a bounded excerpt.
+            "response": (str(response)[:4000] if response is not None else None),
+            "payload": payload,
+        }
+        await self._async_save_cache()
+        self.async_update_listeners()
+
+    async def _maybe_run_mpc(self, now):
+        """Fire run_mpc_optim on the configured cadence when auto MPC is enabled."""
+        if not self.emhass_auto_mpc:
+            self.emhass_next_mpc = None
+            return
+
+        # The service is registered after the first coordinator refresh; wait for it.
+        if not self.hass.services.has_service(DOMAIN, "run_mpc_optim"):
+            return
+
+        interval = timedelta(minutes=max(1, self.emhass_mpc_interval))
+        if self.emhass_last_mpc is None or (now - self.emhass_last_mpc) >= interval:
+            self.emhass_last_mpc = now
+            self.emhass_next_mpc = now + interval
+            await self._async_save_cache()
+            self.hass.async_create_task(
+                self.hass.services.async_call(DOMAIN, "run_mpc_optim", {}, blocking=True)
+            )
+        else:
+            self.emhass_next_mpc = self.emhass_last_mpc + interval
 
     async def async_request_refresh(self):
         self._force_next = True
@@ -94,7 +153,11 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "forecast_source": self.forecast_source,
             "extend_fi_days": self.extend_fi_days,
             "ee_forecast": self.ee_forecast,
-            "last_forecast_poll": self.last_forecast_poll.isoformat() if self.last_forecast_poll else None
+            "last_forecast_poll": self.last_forecast_poll.isoformat() if self.last_forecast_poll else None,
+            "emhass_auto_mpc": self.emhass_auto_mpc,
+            "emhass_mpc_interval": self.emhass_mpc_interval,
+            "emhass_last_mpc": self.emhass_last_mpc.isoformat() if self.emhass_last_mpc else None,
+            "emhass_runs": self.emhass_runs
         })
 
     async def _fetch_ee_forecast(self, force=False):
@@ -157,6 +220,12 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 last_fc_str = cached_data.get("last_forecast_poll")
                 self.last_forecast_poll = dt_util.parse_datetime(last_fc_str) if last_fc_str else None
 
+                self.emhass_auto_mpc = cached_data.get("emhass_auto_mpc", DEFAULT_EMHASS_AUTO_MPC)
+                self.emhass_mpc_interval = cached_data.get("emhass_mpc_interval", DEFAULT_EMHASS_MPC_INTERVAL)
+                last_mpc_str = cached_data.get("emhass_last_mpc")
+                self.emhass_last_mpc = dt_util.parse_datetime(last_mpc_str) if last_mpc_str else None
+                self.emhass_runs = cached_data.get("emhass_runs", {})
+
                 last_date_str = cached_data.get("last_date")
                 self.last_date = dt_util.parse_date(last_date_str) if last_date_str else None
                 
@@ -170,6 +239,9 @@ class NordpoolCoordinator(DataUpdateCoordinator):
 
         # Refresh the EE price forecast on its own hourly cadence (no-op unless selected).
         await self._fetch_ee_forecast(self._force_next)
+
+        # Drive the automatic EMHASS MPC schedule (no-op unless enabled).
+        await self._maybe_run_mpc(now)
 
         if self.last_date != today:
             self.last_date = today

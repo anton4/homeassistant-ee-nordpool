@@ -27,3 +27,15 @@ FORECAST_OPTIONS = [OPTION_NONE, OPTION_FI, OPTION_EE]
 # eupowerprices.com EE price forecast API
 EE_FORECAST_URL = "https://api.eupowerprices.com/v1/forecasts/EE/latest"
 FORECAST_POLL_HOURS = 1
+
+# EMHASS automation defaults
+DEFAULT_EMHASS_AUTO_MPC = False
+DEFAULT_EMHASS_MPC_INTERVAL = 15  # minutes between automatic MPC runs
+
+# EMHASS services whose last run is tracked, mapped to a friendly sensor name
+EMHASS_SERVICE_LABELS = {
+    "run_mpc_optim": "EMHASS Last MPC",
+    "fit_ml_model": "EMHASS Last Fit",
+    "tune_ml_model": "EMHASS Last Tune",
+    "predict_ml_model": "EMHASS Last Predict",
+}
