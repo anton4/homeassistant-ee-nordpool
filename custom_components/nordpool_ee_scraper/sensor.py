@@ -8,7 +8,7 @@ from .const import *
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([
+    entities = [
         NordpoolPriceSensor(coordinator),
         NordpoolStateSensor(coordinator),
         NordpoolImportCostSensor(coordinator),
@@ -16,8 +16,12 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolFromNowSensor(coordinator),
         NordpoolSolcastSensor(coordinator),
         NordpoolLastPollSensor(coordinator),
-        NordpoolNextPollSensor(coordinator)
-    ])
+        NordpoolNextPollSensor(coordinator),
+        NordpoolEmhassNextRunSensor(coordinator),
+    ]
+    for service_key, label in EMHASS_SERVICE_LABELS.items():
+        entities.append(NordpoolEmhassRunSensor(coordinator, service_key, label))
+    async_add_entities(entities)
 
 class NordpoolBaseEntity(CoordinatorEntity):
     _attr_has_entity_name = True
@@ -355,3 +359,58 @@ class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
     @property
     def native_value(self):
         return self.coordinator.next_poll_time
+
+
+class NordpoolEmhassNextRunSensor(NordpoolBaseEntity, SensorEntity):
+    """ETA of the next automatic EMHASS MPC run (when Auto MPC is enabled)."""
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "EMHASS Next Run"
+        self._attr_unique_id = "nordpool_emhass_next_run_sensor"
+        self._attr_icon = "mdi:robot-outline"
+
+    @property
+    def native_value(self):
+        return self.coordinator.emhass_next_mpc
+
+    @property
+    def extra_state_attributes(self):
+        last_mpc = self.coordinator.emhass_last_mpc
+        return {
+            "auto_mpc_enabled": self.coordinator.emhass_auto_mpc,
+            "interval_minutes": self.coordinator.emhass_mpc_interval,
+            "last_scheduled_run": last_mpc.isoformat() if last_mpc else None,
+        }
+
+
+class NordpoolEmhassRunSensor(NordpoolBaseEntity, SensorEntity):
+    """Exposes the outcome of the most recent call to a given EMHASS service."""
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+
+    def __init__(self, coordinator, service_key, name):
+        super().__init__(coordinator)
+        self._service_key = service_key
+        self._attr_name = name
+        self._attr_unique_id = f"nordpool_emhass_{service_key}_run_sensor"
+        self._attr_icon = "mdi:cog-clock"
+
+    @property
+    def native_value(self):
+        run = self.coordinator.emhass_runs.get(self._service_key)
+        if not run or not run.get("last_run"):
+            return None
+        return dt_util.parse_datetime(run["last_run"])
+
+    @property
+    def extra_state_attributes(self):
+        run = self.coordinator.emhass_runs.get(self._service_key, {})
+        return {
+            "status": run.get("status"),
+            "http_code": run.get("http_code"),
+            "duration_seconds": run.get("duration_seconds"),
+            "error": run.get("error"),
+            "response": run.get("response"),
+            "payload": run.get("payload"),
+        }

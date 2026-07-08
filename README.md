@@ -18,7 +18,7 @@ A custom Home Assistant integration that fetches 15-minute interval Nordpool Day
   * **Finland (FI)** — merges a Finnish price forecast from a separate `sensor.nordpool_predict_fi_price`.
   * **Estonia (EE)** — merges the [eupowerprices.com](https://eupowerprices.com) EE price forecast (requires an API key).
 * **Solcast Reshaping (optional):** Converts Solcast PV forecast sensors from 30-minute kW into 15-minute W values, aligned to the remaining price horizon — ready to feed into EMHASS.
-* **EMHASS Services (optional):** Fit / tune / predict an ML load forecaster and run a `naive-mpc-optim` battery + EV charging optimization against a local [EMHASS](https://emhass.readthedocs.io/) instance.
+* **EMHASS Services (optional):** Fit / tune / predict an ML load forecaster and run a `naive-mpc-optim` battery + EV charging optimization against a local [EMHASS](https://emhass.readthedocs.io/) instance — with an optional built-in MPC scheduler (next-run ETA sensor) and per-service last-run debug sensors (status, HTTP code, duration, response, payload).
 * **UI Configurable:** No YAML required. Tariffs, intervals, and the API key are set through the config flow; the forecast source and horizon are live entities.
 
 ---
@@ -75,6 +75,11 @@ All entities are grouped under a single **Nordpool EE Prices** device, so their 
 | `sensor.nordpool_ee_prices_solcast_forecast_15min` | Solcast Forecast 15min | count of forecast values | `values` (PV power forecast in **W**, 15-min resolution, aligned to the remaining price horizon) |
 | `sensor.nordpool_ee_prices_last_poll_time` | Last Poll Time | timestamp | — |
 | `sensor.nordpool_ee_prices_next_poll_time` | Next Poll Time | timestamp | — |
+| `sensor.nordpool_ee_prices_emhass_next_run` | EMHASS Next Run | timestamp (ETA of next auto MPC) | `auto_mpc_enabled`, `interval_minutes`, `last_scheduled_run` |
+| `sensor.nordpool_ee_prices_emhass_last_mpc` | EMHASS Last MPC | timestamp of last MPC call | `status`, `http_code`, `duration_seconds`, `error`, `response`, `payload` |
+| `sensor.nordpool_ee_prices_emhass_last_fit` | EMHASS Last Fit | timestamp of last fit call | *(same as above)* |
+| `sensor.nordpool_ee_prices_emhass_last_tune` | EMHASS Last Tune | timestamp of last tune call | *(same as above)* |
+| `sensor.nordpool_ee_prices_emhass_last_predict` | EMHASS Last Predict | timestamp of last predict call | *(same as above)* |
 
 ### Controls
 
@@ -83,6 +88,8 @@ All entities are grouped under a single **Nordpool EE Prices** device, so their 
 | `button.nordpool_ee_prices_force_update_prices` | Button | Force an immediate poll, bypassing polling throttles. |
 | `select.nordpool_ee_prices_forecast_source` | Select | Choose the active forecast source: **None**, **Finland (FI)**, or **Estonia (EE)**. |
 | `number.nordpool_ee_prices_forecast_extend_days` | Number (1–7) | How many days beyond the last actual EE hour to extend using the selected forecast. |
+| `switch.nordpool_ee_prices_emhass_auto_mpc` | Switch | Enable/disable the integration's automatic EMHASS MPC schedule. |
+| `number.nordpool_ee_prices_emhass_mpc_interval` | Number (1–120 min) | Minutes between automatic MPC runs. |
 
 ---
 
@@ -164,7 +171,19 @@ This service assembles a full `naive-mpc-optim` payload from live Home Assistant
 
 It also sets a battery deficit penalty (`battery_soc_deficit_threshold = 0.3`, `battery_soc_deficit_cost = 1.5`) so the optimizer is discouraged from leaving the battery below 30% SOC, and passes `publish_data: true` so EMHASS generates its result graphs.
 
-All four services return a response (`SupportsResponse.OPTIONAL`) containing `status`, the HTTP code, and the payload that was sent — useful for debugging from **Developer Tools → Actions**.
+All four services return a response (`SupportsResponse.OPTIONAL`) containing `status`, the HTTP code, the payload that was sent, and the EMHASS response body — useful for debugging from **Developer Tools → Actions**.
+
+### Automatic MPC scheduling & debug sensors
+
+Rather than triggering `run_mpc_optim` from your own automation, the integration can run it on a fixed cadence and expose an accurate ETA:
+
+* **`switch.nordpool_ee_prices_emhass_auto_mpc`** — turn the automatic schedule on/off.
+* **`number.nordpool_ee_prices_emhass_mpc_interval`** — minutes between runs (1–120, default 15).
+* **`sensor.nordpool_ee_prices_emhass_next_run`** — a timestamp sensor showing when the next MPC run is due (a live countdown in the UI). Its attributes report whether auto MPC is enabled, the interval, and the last scheduled run.
+
+The scheduler is evaluated on the coordinator's 1-minute tick: when enabled, it fires `run_mpc_optim` whenever `now − last_run ≥ interval`. It survives restarts (the last run time and settings are cached to disk). If you enable this, remove any external automation that was calling `run_mpc_optim`, or MPC will run twice.
+
+Every EMHASS call — whether triggered by the schedule, by an automation, or manually — records its outcome, surfaced as timestamp sensors (`EMHASS Last MPC / Fit / Tune / Predict`). Each carries the last call's `status`, `http_code`, `duration_seconds`, `error`, a bounded excerpt of the EMHASS `response`, and the `payload` that was sent, so you can see exactly what happened without digging through logs.
 
 ---
 
