@@ -1,5 +1,6 @@
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -7,7 +8,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([NordpoolEmhassAutoMpcSwitch(coordinator)])
 
 class NordpoolEmhassAutoMpcSwitch(SwitchEntity):
+    """When on, the integration runs EMHASS run_mpc_optim automatically on the MPC interval."""
     _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
 
     def __init__(self, coordinator):
         self.coordinator = coordinator

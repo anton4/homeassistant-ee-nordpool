@@ -3,8 +3,18 @@ from datetime import timedelta
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity import EntityCategory
 import homeassistant.util.dt as dt_util
 from .const import *
+
+# Valid MDI icons per EMHASS action (mdi:cog-clock used before was not a real icon).
+EMHASS_RUN_ICONS = {
+    "run_mpc_optim": "mdi:calculator",
+    "publish_data": "mdi:publish",
+    "fit_ml_model": "mdi:brain",
+    "tune_ml_model": "mdi:tune",
+    "predict_ml_model": "mdi:chart-line",
+}
 
 async def async_setup_entry(hass, entry, async_add_entities):
     coordinator = hass.data[DOMAIN][entry.entry_id]
@@ -20,7 +30,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolEmhassNextRunSensor(coordinator),
     ]
     for service_key, label in EMHASS_SERVICE_LABELS.items():
-        entities.append(NordpoolEmhassRunSensor(coordinator, service_key, label))
+        icon = EMHASS_RUN_ICONS.get(service_key, "mdi:cog")
+        entities.append(NordpoolEmhassRunSensor(coordinator, service_key, label, icon))
     async_add_entities(entities)
 
 class NordpoolBaseEntity(CoordinatorEntity):
@@ -178,13 +189,21 @@ class NordpoolPriceSensor(NordpoolBaseEntity, SensorEntity):
     def extra_state_attributes(self):
         return {
             "prices": self._get_merged_raw_prices(),
-            "last_poll_time": self.coordinator.last_poll_time.isoformat() if self.coordinator.last_poll_time else None
+            "last_poll_time": self.coordinator.last_poll_time.isoformat() if self.coordinator.last_poll_time else None,
+            "source": "Nordpool Day-Ahead API (dataportal-api.nordpoolgroup.com)",
+            "delivery_area": "EE",
+            "currency": "EUR",
+            "unit": "€/kWh",
+            "forecast_source": self.coordinator.forecast_source,
         }
 
 class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
+    """Nordpool's publication status for tomorrow's EE day-ahead prices (Waiting/Preliminary/Final)."""
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Prices State"
+        self._attr_name = "Day-Ahead Publish Status"
         self._attr_unique_id = "nordpool_prices_state_sensor"
         self._attr_icon = "mdi:list-status"
 
@@ -195,13 +214,17 @@ class NordpoolStateSensor(NordpoolBaseEntity, SensorEntity):
     @property
     def extra_state_attributes(self):
         return {
+            "nordpool_api": "https://dataportal-api.nordpoolgroup.com/api/DayAheadPrices",
+            "delivery_area": "EE",
+            "currency": "EUR",
             "http_code_today": self.coordinator.data.get("http_code_today"),
             "status_today": self.coordinator.data.get("api_status_today", "Unknown"),
             "http_code_tomorrow": self.coordinator.data.get("http_code_tomorrow"),
             "status_tomorrow": self.coordinator.data.get("api_status_tomorrow", "Unknown"),
             "forecast_source": self.coordinator.data.get("forecast_source"),
+            "forecast_api": "https://api.eupowerprices.com/v1/forecasts/EE/latest",
             "forecast_status": self.coordinator.data.get("forecast_status"),
-            "http_code_forecast": self.coordinator.data.get("http_code_forecast")
+            "http_code_forecast": self.coordinator.data.get("http_code_forecast"),
         }
 
 class NordpoolImportCostSensor(NordpoolBaseEntity, SensorEntity):
@@ -335,11 +358,13 @@ class NordpoolSolcastSensor(NordpoolBaseEntity, SensorEntity):
 
 
 class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
+    """When the integration last actually fetched prices from the Nordpool API."""
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Last Poll Time"
+        self._attr_name = "Last Nordpool Poll"
         self._attr_unique_id = "nordpool_last_poll_time_sensor"
         self._attr_icon = "mdi:clock-check"
 
@@ -348,11 +373,13 @@ class NordpoolLastPollSensor(NordpoolBaseEntity, SensorEntity):
         return self.coordinator.last_poll_time
 
 class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
+    """When the integration will next poll the Nordpool API (per the fast/slow schedule)."""
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
-        self._attr_name = "Next Poll Time"
+        self._attr_name = "Next Nordpool Poll"
         self._attr_unique_id = "nordpool_next_poll_time_sensor"
         self._attr_icon = "mdi:update"
 
@@ -364,6 +391,7 @@ class NordpoolNextPollSensor(NordpoolBaseEntity, SensorEntity):
 class NordpoolEmhassNextRunSensor(NordpoolBaseEntity, SensorEntity):
     """ETA of the next automatic EMHASS MPC run (when Auto MPC is enabled)."""
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -388,13 +416,14 @@ class NordpoolEmhassNextRunSensor(NordpoolBaseEntity, SensorEntity):
 class NordpoolEmhassRunSensor(NordpoolBaseEntity, SensorEntity):
     """Exposes the outcome of the most recent call to a given EMHASS service."""
     _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
-    def __init__(self, coordinator, service_key, name):
+    def __init__(self, coordinator, service_key, name, icon):
         super().__init__(coordinator)
         self._service_key = service_key
         self._attr_name = name
         self._attr_unique_id = f"nordpool_emhass_{service_key}_run_sensor"
-        self._attr_icon = "mdi:cog-clock"
+        self._attr_icon = icon
 
     @property
     def native_value(self):

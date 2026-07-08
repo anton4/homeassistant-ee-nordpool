@@ -192,9 +192,13 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                     self.ee_forecast = parsed
                     self.forecast_status = f"Success ({len(parsed)} points)"
                     self.last_forecast_poll = now
+                    _LOGGER.info("EE forecast fetched from %s (HTTP %s, %d points)",
+                                 EE_FORECAST_URL, resp.status, len(parsed))
                     await self._async_save_cache()
                 else:
                     self.forecast_status = f"HTTP Error {resp.status}"
+                    _LOGGER.warning("EE forecast fetch returned HTTP %s from %s",
+                                    resp.status, EE_FORECAST_URL)
         except Exception as e:
             _LOGGER.error("EE forecast fetch failed: %s", e)
             self.forecast_status = f"Exception: {str(e)[:50]}"
@@ -330,7 +334,14 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             else:
                 threshold = timedelta(minutes=fast_min) if is_fast_window else timedelta(hours=slow_hr)
                 self.next_poll_time = self.last_poll_time + threshold
-                
+
+            _LOGGER.info(
+                "Nordpool EE poll done (today: %s [HTTP %s], tomorrow: %s [HTTP %s], state: %s) — next poll %s",
+                self.api_status_today, self.http_code_today,
+                self.api_status_tomorrow, self.http_code_tomorrow,
+                self.current_state,
+                self.next_poll_time.isoformat() if self.next_poll_time else "unknown",
+            )
             await self._async_save_cache()
             return self._build_return_data()
             
