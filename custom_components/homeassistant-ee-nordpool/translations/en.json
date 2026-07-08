@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Nordpool EE Prices setup",
+        "description": "Configure polling and your grid fees. All fee fields are in €/kWh (e.g. 1.2 cents = 0.012).",
+        "data": {
+          "fast_interval": "Fast polling interval",
+          "slow_interval": "Slow polling interval",
+          "api_key": "eupowerprices.com API key",
+          "margin": "Broker import margin",
+          "taastuv": "Renewable energy fee (taastuvenergiatasu)",
+          "aktsiis": "Electricity excise (elektriaktsiis)",
+          "elektrilevi_day": "Elektrilevi daytime transmission",
+          "elektrilevi_night": "Elektrilevi night/weekend/holiday transmission",
+          "tasakaal": "Import balancing fee (tasakaalustusosa)",
+          "varustus": "Security of supply fee (varustuskindluse tasu)",
+          "vat": "VAT (käibemaks)",
+          "export_margin": "Broker export margin deduction",
+          "export_tasakaal": "Export balancing fee"
+        },
+        "data_description": {
+          "fast_interval": "Minutes between retries while waiting for tomorrow's prices during the 13:45–15:00 publish window.",
+          "slow_interval": "Hours between normal price refreshes the rest of the day.",
+          "api_key": "Optional — only needed for the Estonia (EE) forecast source. Leave blank if unused.",
+          "margin": "Retailer/broker margin added to the spot price (€/kWh).",
+          "taastuv": "Renewable energy fee added to the spot price (€/kWh).",
+          "aktsiis": "Electricity excise added to the spot price (€/kWh).",
+          "elektrilevi_day": "Grid transmission tariff for daytime (Mon–Fri 07:00–22:00) (€/kWh).",
+          "elektrilevi_night": "Grid transmission tariff for nights, weekends and holidays (€/kWh).",
+          "tasakaal": "Import balancing fee added to the spot price (€/kWh).",
+          "varustus": "Security of supply fee added to the spot price (€/kWh).",
+          "vat": "VAT percentage applied to the final import price (e.g. 24).",
+          "export_margin": "Broker margin deducted from the spot price for exported energy (€/kWh).",
+          "export_tasakaal": "Balancing fee deducted from exported energy (€/kWh)."
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Adjust tariffs, fees & polling",
+        "description": "Update polling intervals and grid fees. All fee fields are in €/kWh (e.g. 1.2 cents = 0.012).",
+        "data": {
+          "fast_interval": "Fast polling interval",
+          "slow_interval": "Slow polling interval",
+          "api_key": "eupowerprices.com API key",
+          "margin": "Broker import margin",
+          "taastuv": "Renewable energy fee (taastuvenergiatasu)",
+          "aktsiis": "Electricity excise (elektriaktsiis)",
+          "elektrilevi_day": "Elektrilevi daytime transmission",
+          "elektrilevi_night": "Elektrilevi night/weekend/holiday transmission",
+          "tasakaal": "Import balancing fee (tasakaalustusosa)",
+          "varustus": "Security of supply fee (varustuskindluse tasu)",
+          "vat": "VAT (käibemaks)",
+          "export_margin": "Broker export margin deduction",
+          "export_tasakaal": "Export balancing fee"
+        },
+        "data_description": {
+          "fast_interval": "Minutes between retries while waiting for tomorrow's prices during the 13:45–15:00 publish window.",
+          "slow_interval": "Hours between normal price refreshes the rest of the day.",
+          "api_key": "Optional — only needed for the Estonia (EE) forecast source. Leave blank if unused.",
+          "margin": "Retailer/broker margin added to the spot price (€/kWh).",
+          "taastuv": "Renewable energy fee added to the spot price (€/kWh).",
+          "aktsiis": "Electricity excise added to the spot price (€/kWh).",
+          "elektrilevi_day": "Grid transmission tariff for daytime (Mon–Fri 07:00–22:00) (€/kWh).",
+          "elektrilevi_night": "Grid transmission tariff for nights, weekends and holidays (€/kWh).",
+          "tasakaal": "Import balancing fee added to the spot price (€/kWh).",
+          "varustus": "Security of supply fee added to the spot price (€/kWh).",
+          "vat": "VAT percentage applied to the final import price (e.g. 24).",
+          "export_margin": "Broker margin deducted from the spot price for exported energy (€/kWh).",
+          "export_tasakaal": "Balancing fee deducted from exported energy (€/kWh)."
+        }
+      }
+    }
+  }
+}
