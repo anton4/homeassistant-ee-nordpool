@@ -3,12 +3,13 @@ import async_timeout
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN
+import homeassistant.util.dt as dt_util
+from .const import DOMAIN, OPTION_NONE
 from .coordinator import NordpoolCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "button", "switch", "number"]
+PLATFORMS = ["sensor", "button", "select", "number", "switch"]
 EMHASS_URL = "http://localhost:5001/action"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -22,16 +23,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     session = async_get_clientsession(hass)
 
+    def get_extend_days():
+        """Extra forecast days currently in play (0 unless a forecast source is selected)."""
+        active = getattr(coordinator, 'forecast_source', OPTION_NONE) != OPTION_NONE
+        return coordinator.extend_fi_days if active else 0
+
     def get_max_lags():
         """Calculates the absolute maximum prediction horizon to prevent ML lag crashes."""
-        fi_days = coordinator.extend_fi_days if getattr(coordinator, 'extend_fi', False) else 0
-        max_horizon = 192 + (fi_days * 96)
+        max_horizon = 192 + (get_extend_days() * 96)
         return max_horizon
 
     def get_delta_days():
         """Calculates the max daily horizon limit to prevent EMHASS from clipping the arrays."""
-        fi_days = coordinator.extend_fi_days if getattr(coordinator, 'extend_fi', False) else 0
-        return 2 + fi_days
+        return 2 + get_extend_days()
         
     def get_history_needed():
         """Ensures EMHASS pulls enough days of history to satisfy the ML lags."""
@@ -43,6 +47,36 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hours = int(get_max_lags() / 4)
         return f"{hours}h"
 
+    async def call_emhass(service_name: str, endpoint: str, payload: dict, timeout: int) -> dict:
+        """POST to EMHASS, capture the response, and record the outcome for the debug sensors."""
+        start = dt_util.utcnow()
+        http_code = None
+        body = None
+        try:
+            async with async_timeout.timeout(timeout):
+                resp = await session.post(f"{EMHASS_URL}/{endpoint}", json=payload)
+                http_code = resp.status
+                try:
+                    body = await resp.json()
+                except Exception:
+                    body = await resp.text()
+                resp.raise_for_status()
+            duration = (dt_util.utcnow() - start).total_seconds()
+            _LOGGER.info("EMHASS %s succeeded (HTTP %s) in %.1fs.", service_name, http_code, duration)
+            await coordinator.record_emhass_run(
+                service_name, status="success", http_code=http_code,
+                response=body, payload=payload, duration=duration
+            )
+            return {"status": "success", "http_code": http_code, "payload_sent": payload, "response": body}
+        except Exception as e:
+            duration = (dt_util.utcnow() - start).total_seconds()
+            _LOGGER.error("EMHASS %s failed: %s", service_name, e)
+            await coordinator.record_emhass_run(
+                service_name, status="error", http_code=http_code,
+                response=body, payload=payload, error=str(e), duration=duration
+            )
+            return {"status": "error", "error_message": str(e), "http_code": http_code, "response": body}
+
     async def handle_fit_ml_model(call: ServiceCall) -> dict:
         auto_lags = get_max_lags()
         payload = {
@@ -53,15 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "num_lags": auto_lags,
             "split_date_delta": get_split_date_delta()
         }
-        try:
-            async with async_timeout.timeout(3600):
-                resp = await session.post(f"{EMHASS_URL}/forecast-model-fit", json=payload)
-                resp.raise_for_status()
-                _LOGGER.info(f"EMHASS ML Model Fit initiated with {auto_lags} automated lags.")
-                return {"status": "success", "http_code": resp.status, "automated_lags": auto_lags, "payload_sent": payload}
-        except Exception as e:
-            _LOGGER.error("Failed to fit EMHASS ML model: %s", e)
-            return {"status": "error", "error_message": str(e)}
+        return await call_emhass("fit_ml_model", "forecast-model-fit", payload, 3600)
 
     async def handle_tune_ml_model(call: ServiceCall) -> dict:
         auto_lags = get_max_lags()
@@ -74,15 +100,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "split_date_delta": get_split_date_delta(),
             "n_trials": call.data.get("n_trials", 10)
         }
-        try:
-            async with async_timeout.timeout(7200):
-                resp = await session.post(f"{EMHASS_URL}/forecast-model-tune", json=payload)
-                resp.raise_for_status()
-                _LOGGER.info("EMHASS ML Model Tune completed.")
-                return {"status": "success", "http_code": resp.status, "payload_sent": payload}
-        except Exception as e:
-            _LOGGER.error("Failed to tune EMHASS ML model: %s", e)
-            return {"status": "error", "error_message": str(e)}
+        return await call_emhass("tune_ml_model", "forecast-model-tune", payload, 7200)
 
     async def handle_predict_ml_model(call: ServiceCall) -> dict:
         payload = {
@@ -95,15 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "model_predict_unit_of_measurement": "W",
             "model_predict_friendly_name": "Load Power Forecast ML"
         }
-        try:
-            async with async_timeout.timeout(180):
-                resp = await session.post(f"{EMHASS_URL}/forecast-model-predict", json=payload)
-                resp.raise_for_status()
-                _LOGGER.info("EMHASS ML Predict published.")
-                return {"status": "success", "http_code": resp.status, "payload_sent": payload}
-        except Exception as e:
-            _LOGGER.error("Failed to predict EMHASS ML model: %s", e)
-            return {"status": "error", "error_message": str(e)}
+        return await call_emhass("predict_ml_model", "forecast-model-predict", payload, 180)
 
     async def handle_run_mpc_optim(call: ServiceCall) -> dict:
         np_state = hass.states.get('sensor.nordpool_ee_prices_prices_from_now')
@@ -151,25 +161,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "operating_hours_of_each_deferrable_load": op_hours,
             "end_timesteps_of_each_deferrable_load": timesteps,
             "set_deferrable_load_single_constant": [ev_force],
-            "battery_soc_deficit_threshold": 0.3,
-            "battery_soc_deficit_cost": 1.5,
             "publish_data": True # <-- This tells EMHASS to generate the SVG graphs
         }
 
-        try:
-            async with async_timeout.timeout(180):
-                resp = await session.post(f"{EMHASS_URL}/naive-mpc-optim", json=payload)
-                resp.raise_for_status()
-                _LOGGER.info("EMHASS MPC Optim triggered.")
-                
-                return {
-                    "status": "success", 
-                    "http_code": resp.status, 
-                    "payload_sent": payload
-                }
-        except Exception as e:
-            _LOGGER.error("Failed to trigger MPC Optim: %s", e)
-            return {"status": "error", "error_message": str(e)}
+        return await call_emhass("run_mpc_optim", "naive-mpc-optim", payload, 180)
 
     hass.services.async_register(DOMAIN, "fit_ml_model", handle_fit_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "tune_ml_model", handle_tune_ml_model, supports_response=SupportsResponse.OPTIONAL)

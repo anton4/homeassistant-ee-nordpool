@@ -13,6 +13,7 @@ class NordpoolConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         schema = vol.Schema({
             vol.Required("fast_interval", description={"suggested_value": "Fast Polling Interval (minutes)"}, default=5): vol.All(int, vol.Range(min=1, max=60)),
             vol.Required("slow_interval", description={"suggested_value": "Slow Polling Interval (hours)"}, default=1): vol.All(int, vol.Range(min=1, max=24)),
+            vol.Optional("api_key", description={"suggested_value": "eupowerprices.com API Key (for EE forecast)"}, default=""): str,
             vol.Required("margin", description={"suggested_value": "Broker Import Margin (€/kWh)"}, default=DEFAULT_MARGIN): vol.Coerce(float),
             vol.Required("taastuv", description={"suggested_value": "Renewable Energy Fee / Taastuvenergiatasu (€/kWh)"}, default=DEFAULT_TAASTUV): vol.Coerce(float),
             vol.Required("aktsiis", description={"suggested_value": "Electricity Excise / Elektriaktsiis (€/kWh)"}, default=DEFAULT_AKTSIIS): vol.Coerce(float),
@@ -42,6 +43,7 @@ class NordpoolOptionsFlow(config_entries.OptionsFlow):
         schema = vol.Schema({
             vol.Required("fast_interval", default=get_val("fast_interval", 5)): vol.All(int, vol.Range(min=1, max=60)),
             vol.Required("slow_interval", default=get_val("slow_interval", 1)): vol.All(int, vol.Range(min=1, max=24)),
+            vol.Optional("api_key", default=get_val("api_key", "")): str,
             vol.Required("margin", default=get_val("margin", DEFAULT_MARGIN)): vol.Coerce(float),
             vol.Required("taastuv", default=get_val("taastuv", DEFAULT_TAASTUV)): vol.Coerce(float),
             vol.Required("aktsiis", default=get_val("aktsiis", DEFAULT_AKTSIIS)): vol.Coerce(float),
