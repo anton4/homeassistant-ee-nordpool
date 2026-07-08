@@ -163,14 +163,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             "set_deferrable_load_single_constant": [ev_force]
         }
 
-        result = await call_emhass("run_mpc_optim", "naive-mpc-optim", payload, 180)
-        # The optim computes the schedule and draws the EMHASS figures/table, but only
-        # publish-data creates/updates the p_* HA sensors (p_load_forecast, p_batt_forecast,
-        # p_deferrable0, p_grid_forecast, p_pv_forecast, ...). Chain it so the figures and the
-        # sensors refresh together on every run.
-        if result.get("status") == "success":
-            result["publish"] = await call_emhass("publish_data", "publish-data", {}, 60)
-        return result
+        # Publishing the p_* HA sensors is intentionally NOT chained here. A separate
+        # publish-data POST replaces the optimization figure on the EMHASS web UI with the
+        # publish output (empty graphs). Instead enable `continual_publish: true` in the
+        # EMHASS config so the optimization publishes the sensors itself while keeping its
+        # figure. Use the standalone `publish_data` service if you prefer manual publishing.
+        return await call_emhass("run_mpc_optim", "naive-mpc-optim", payload, 180)
 
     async def handle_publish_data(call: ServiceCall) -> dict:
         return await call_emhass("publish_data", "publish-data", {}, 60)
