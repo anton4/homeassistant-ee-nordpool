@@ -44,6 +44,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.last_forecast_poll = None
         self.forecast_status = "Not Polled"
         self.http_code_forecast = None
+        self.forecast_poll_hours = FORECAST_POLL_HOURS
 
         # EMHASS scheduling + last-run debug state
         self.emhass_auto_mpc = DEFAULT_EMHASS_AUTO_MPC
@@ -71,6 +72,11 @@ class NordpoolCoordinator(DataUpdateCoordinator):
 
     async def async_set_extend_fi_days(self, value: int):
         self.extend_fi_days = value
+        await self._async_save_cache()
+        await self.async_request_refresh()
+
+    async def async_set_forecast_poll_hours(self, value: int):
+        self.forecast_poll_hours = value
         await self._async_save_cache()
         await self.async_request_refresh()
 
@@ -154,6 +160,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "extend_fi_days": self.extend_fi_days,
             "ee_forecast": self.ee_forecast,
             "last_forecast_poll": self.last_forecast_poll.isoformat() if self.last_forecast_poll else None,
+            "forecast_poll_hours": self.forecast_poll_hours,
             "emhass_auto_mpc": self.emhass_auto_mpc,
             "emhass_mpc_interval": self.emhass_mpc_interval,
             "emhass_last_mpc": self.emhass_last_mpc.isoformat() if self.emhass_last_mpc else None,
@@ -167,7 +174,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
 
         now = dt_util.now()
         if not force and self.last_forecast_poll is not None:
-            if (now - self.last_forecast_poll) < timedelta(hours=FORECAST_POLL_HOURS):
+            if (now - self.last_forecast_poll) < timedelta(hours=self.forecast_poll_hours):
                 return
 
         try:
@@ -223,6 +230,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 self.ee_forecast = cached_data.get("ee_forecast", [])
                 last_fc_str = cached_data.get("last_forecast_poll")
                 self.last_forecast_poll = dt_util.parse_datetime(last_fc_str) if last_fc_str else None
+                self.forecast_poll_hours = cached_data.get("forecast_poll_hours", FORECAST_POLL_HOURS)
 
                 self.emhass_auto_mpc = cached_data.get("emhass_auto_mpc", DEFAULT_EMHASS_AUTO_MPC)
                 self.emhass_mpc_interval = cached_data.get("emhass_mpc_interval", DEFAULT_EMHASS_MPC_INTERVAL)
