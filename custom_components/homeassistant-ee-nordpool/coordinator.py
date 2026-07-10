@@ -55,6 +55,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         self.emhass_runs = {}         # per-service last-call debug info
 
         self._force_next = False
+        self._notified_failures = set()
         self.store = Store(hass, STORAGE_VERSION, STORAGE_KEY)
         self._loaded_from_disk = False
         
@@ -106,7 +107,50 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             "payload": payload,
         }
         await self._async_save_cache()
+        self._async_update_problem_notification()
         self.async_update_listeners()
+
+    def get_failures(self):
+        """Collect every currently-failing subsystem as {key: human-readable message}."""
+        def bad(status):
+            return bool(status) and (status.startswith("HTTP Error") or status.startswith("Exception"))
+
+        failures = {}
+        if bad(self.api_status_today):
+            failures["nordpool_today"] = f"Nordpool today's prices: {self.api_status_today}"
+        if bad(self.api_status_tomorrow):
+            failures["nordpool_tomorrow"] = f"Nordpool tomorrow's prices: {self.api_status_tomorrow}"
+
+        if self.forecast_source == OPTION_EE:
+            if not self.api_key:
+                failures["ee_forecast"] = "Estonia (EE) forecast selected but no eupowerprices.com API key configured"
+            elif bad(self.forecast_status):
+                failures["ee_forecast"] = f"eupowerprices.com forecast: {self.forecast_status}"
+
+        for service, run in (self.emhass_runs or {}).items():
+            if run.get("status") == "error":
+                failures[f"emhass_{service}"] = f"EMHASS {service}: {run.get('error') or 'failed'}"
+        return failures
+
+    def _async_update_problem_notification(self):
+        """Raise/clear a persistent notification when the set of failing subsystems changes."""
+        from homeassistant.components import persistent_notification
+
+        failures = self.get_failures()
+        keys = set(failures)
+        if keys == self._notified_failures:
+            return
+        if failures:
+            message = "The following updates are failing:\n" + "\n".join(f"- {msg}" for msg in failures.values())
+            message += "\n\nSee the *Update Problem* sensor on the Nordpool EE Prices device for details."
+            persistent_notification.async_create(
+                self.hass, message,
+                title="Nordpool EE Prices: update failures",
+                notification_id="nordpool_ee_scraper_problems",
+            )
+        else:
+            persistent_notification.async_dismiss(self.hass, "nordpool_ee_scraper_problems")
+        self._notified_failures = keys
 
     async def _maybe_run_mpc(self, now):
         """Fire run_mpc_optim on the configured cadence when auto MPC is enabled."""
@@ -210,6 +254,7 @@ class NordpoolCoordinator(DataUpdateCoordinator):
         except Exception as e:
             _LOGGER.error("EE forecast fetch failed: %s", e)
             self.forecast_status = f"Exception: {str(e)[:50]}"
+        self._async_update_problem_notification()
 
     async def _async_update_data(self):
         now = dt_util.now()
@@ -354,13 +399,15 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 self.next_poll_time.isoformat() if self.next_poll_time else "unknown",
             )
             await self._async_save_cache()
+            self._async_update_problem_notification()
             return self._build_return_data()
-            
+
         except Exception as e:
             _LOGGER.error("Nordpool scraping failed: %s", e)
             self.api_status_today = f"Exception: {str(e)[:50]}"
             self.api_status_tomorrow = f"Exception: {str(e)[:50]}"
             self.next_poll_time = now + timedelta(minutes=1)
+            self._async_update_problem_notification()
             raise UpdateFailed(f"Failed to fetch data: {e}")
 
     def _update_state(self, data):

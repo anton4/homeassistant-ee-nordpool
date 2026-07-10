@@ -9,7 +9,7 @@ from .coordinator import NordpoolCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS = ["sensor", "button", "select", "number", "switch"]
+PLATFORMS = ["sensor", "binary_sensor", "button", "select", "number", "switch"]
 EMHASS_URL = "http://localhost:5001/action"
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
