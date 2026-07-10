@@ -15,8 +15,8 @@ A custom Home Assistant integration that fetches 15-minute interval Nordpool Day
 * **Export Tariffs:** Deducts a broker margin and balancing fee from the raw spot price for solar/battery yield tracking.
 * **Selectable Price Forecast:** A **Forecast Source** selector chooses how to extend the price curve beyond the last published spot hour:
   * **None** — actual spot prices only.
-  * **Finland (FI)** — merges a Finnish price forecast from a separate `sensor.nordpool_predict_fi_price`.
-  * **Estonia (EE)** — merges the [eupowerprices.com](https://eupowerprices.com) EE price forecast (requires an API key).
+  * **Finland (FI) - nordpool-predict-fi** — merges the FI price prediction from the [nordpool-predict-fi](https://github.com/vividfog/nordpool-predict-fi) project (its HACS companion integration must be installed — see [Forecast Sources](#forecast-sources)).
+  * **Estonia (EE) - eupowerprices.com** — merges the [eupowerprices.com](https://eupowerprices.com) EE price forecast (requires an API key).
 * **Solcast Reshaping (optional):** Converts Solcast PV forecast sensors from 30-minute kW into 15-minute W values, aligned to the remaining price horizon — ready to feed into EMHASS.
 * **EMHASS Services (optional):** Fit / tune / predict an ML load forecaster and run a `naive-mpc-optim` battery + EV charging optimization against a local [EMHASS](https://emhass.readthedocs.io/) instance — with an optional built-in MPC scheduler (next-run ETA sensor) and per-service last-run debug sensors (status, HTTP code, duration, response, payload).
 * **UI Configurable:** No YAML required. Tariffs, intervals, and the API key are set through the config flow; the forecast source and horizon are live entities.
@@ -99,7 +99,7 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 | Entity ID | Name | Group | Purpose |
 | --- | --- | --- | --- |
 | `button.nordpool_ee_prices_force_update_prices` | Fetch Nordpool Prices Now | Controls | Immediately fetch today's + tomorrow's day-ahead prices from the Nordpool API (and the EE forecast if that source is selected), bypassing the fast/slow throttle. |
-| `select.nordpool_ee_prices_forecast_source` | Forecast Source | Config | Choose the active forecast source: **None**, **Finland (FI)**, or **Estonia (EE)**. |
+| `select.nordpool_ee_prices_forecast_source` | Forecast Source | Config | Choose the active forecast source: **None**, **Finland (FI) - nordpool-predict-fi**, or **Estonia (EE) - eupowerprices.com**. The option labels name the data provider; details are in the entity's attributes. |
 | `number.nordpool_ee_prices_forecast_extend_days` | Forecast Extend Days | Config | How many days beyond the last actual EE hour to extend using the selected forecast (1–7). |
 | `switch.nordpool_ee_prices_emhass_auto_mpc` | EMHASS Auto MPC | Config | Enable/disable the integration's automatic EMHASS MPC schedule. |
 | `number.nordpool_ee_prices_emhass_mpc_interval` | EMHASS MPC Interval | Config | Minutes between automatic MPC runs (1–120). |
@@ -113,10 +113,12 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 
 Selecting a forecast source extends the price curve beyond the last published EE spot hour. If the required data is unavailable, the sensors fall back to actual prices only.
 
-### Finland (FI) forecast
+### Finland (FI) forecast — nordpool-predict-fi
 Reads `sensor.nordpool_predict_fi_price` (its `forecast` attribute — a list of `{timestamp, value}` in **cents/kWh**), converts each hourly value into four 15-minute blocks, and appends the blocks that fall after the last known EE period up to the **Forecast Extend Days** cutoff.
 
-> Requires a separate integration/sensor that publishes `sensor.nordpool_predict_fi_price`.
+> **Requires** the [nordpool-predict-fi](https://github.com/vividfog/nordpool-predict-fi) project's HACS companion integration ([nordpool-predict-fi-hacs](https://github.com/vividfog/nordpool-predict-fi-hacs)), which publishes `sensor.nordpool_predict_fi_price` — an ML-based 7-day prediction of Finnish (FI) spot prices. Without it, selecting this source yields no extension.
+
+**Approximating EE prices with a surcharge.** The prediction is for the **FI** bidding area, not EE. FI and EE prices track each other closely most of the time, but EE typically trades slightly higher. The nordpool-predict-fi integration provides an adjustable surcharge entity — **`number.nordpool_predict_fi_extra_fees`** (c/kWh, default `0.0`) — that is added to every predicted price reading. Set it to your typical FI→EE spread so the FI prediction better approximates EE price levels before this integration merges it into the price curve.
 
 ### Estonia (EE) forecast — eupowerprices.com
 Fetches the EE price forecast from the [eupowerprices.com](https://eupowerprices.com) API and merges it the same way as the FI forecast. This is an EE-native forecast, so no cross-border assumptions are needed.

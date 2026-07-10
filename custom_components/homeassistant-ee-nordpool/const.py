@@ -18,11 +18,18 @@ DEFAULT_EXPORT_TASAKAAL = 0.00373
 DEFAULT_EXTEND_FI = False
 DEFAULT_EXTEND_FI_DAYS = 1
 
-# Forecast source options (values shown/stored by the "Forecast Source" select entity)
+# Forecast source options (values shown/stored by the "Forecast Source" select entity).
+# The labels name the data provider so the dropdown is self-explanatory.
 OPTION_NONE = "None"
-OPTION_FI = "Finland (FI)"
-OPTION_EE = "Estonia (EE)"
+OPTION_FI = "Finland (FI) - nordpool-predict-fi"
+OPTION_EE = "Estonia (EE) - eupowerprices.com"
 FORECAST_OPTIONS = [OPTION_NONE, OPTION_FI, OPTION_EE]
+
+# Pre-2026.7.10 cached values mapped to the new provider-labelled options
+LEGACY_FORECAST_SOURCES = {
+    "Finland (FI)": OPTION_FI,
+    "Estonia (EE)": OPTION_EE,
+}
 
 # eupowerprices.com EE price forecast API
 EE_FORECAST_URL = "https://api.eupowerprices.com/v1/forecasts/EE/latest"

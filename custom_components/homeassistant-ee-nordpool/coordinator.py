@@ -10,6 +10,7 @@ import homeassistant.util.dt as dt_util
 from .const import (
     DOMAIN,
     OPTION_NONE, OPTION_FI, OPTION_EE,
+    LEGACY_FORECAST_SOURCES,
     EE_FORECAST_URL, FORECAST_POLL_HOURS,
     DEFAULT_EMHASS_AUTO_MPC, DEFAULT_EMHASS_MPC_INTERVAL,
 )
@@ -222,10 +223,12 @@ class NordpoolCoordinator(DataUpdateCoordinator):
                 self.price_dict = cached_data.get("price_dict", {})
                 self.current_state = cached_data.get("current_state", "Waiting")
                 self.tomorrow_final = cached_data.get("tomorrow_final", False)
-                self.forecast_source = cached_data.get(
+                cached_source = cached_data.get(
                     "forecast_source",
                     OPTION_FI if cached_data.get("extend_fi") else OPTION_NONE
                 )
+                # Migrate pre-2026.7.10 values to the provider-labelled option strings.
+                self.forecast_source = LEGACY_FORECAST_SOURCES.get(cached_source, cached_source)
                 self.extend_fi_days = cached_data.get("extend_fi_days", 1)
                 self.ee_forecast = cached_data.get("ee_forecast", [])
                 last_fc_str = cached_data.get("last_forecast_poll")
