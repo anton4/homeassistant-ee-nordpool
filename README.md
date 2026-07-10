@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="brands/nordpool_ee_scraper/logo.png" alt="Nordpool EE Prices logo" width="220"/>
+</p>
+
 # Nordpool EE 15-Minute Prices + Forecasts + EMHASS
 
 A custom Home Assistant integration that fetches 15-minute interval Nordpool Day-Ahead electricity prices for the Estonian (`EE`) delivery area. On top of the raw spot price it computes real-time **Import Costs** (Elektrilevi transmission, excise, renewable-energy and balancing fees, and VAT) and **Export Costs** (for net-metering solar/battery setups), can **extend the price curve into the future** using either a Finnish (FI) price forecast or an Estonian (EE) price forecast from [eupowerprices.com](https://eupowerprices.com), reshapes **Solcast** PV forecasts into the same 15-minute grid, and exposes a set of **EMHASS** services for machine-learning load forecasting and battery/EV Model Predictive Control (MPC) optimization.
