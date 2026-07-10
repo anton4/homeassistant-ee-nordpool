@@ -81,6 +81,7 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 
 | Entity ID | Name | State | Key Attributes |
 | --- | --- | --- | --- |
+| `binary_sensor.nordpool_ee_prices_update_problem` | Update Problem | `Problem` / `OK` — on when **any** update is failing (Nordpool scraping, eupowerprices.com poll, or any EMHASS call) | `failed_components`, `failures` (human-readable messages) |
 | `sensor.nordpool_ee_prices_prices_state` | Day-Ahead Publish Status | `Waiting` / `Preliminary` / `Final` — Nordpool's publication status for tomorrow's EE prices | `nordpool_api`, `delivery_area`, `currency`, `status_today`, `http_code_today`, `status_tomorrow`, `http_code_tomorrow`, `forecast_source`, `forecast_api`, `forecast_status`, `http_code_forecast` |
 | `sensor.nordpool_ee_prices_last_poll_time` | Last Nordpool Poll | timestamp of the last actual fetch from the Nordpool API | — |
 | `sensor.nordpool_ee_prices_next_poll_time` | Next Nordpool Poll | timestamp of the next scheduled fetch | — |
@@ -106,6 +107,16 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 | `number.nordpool_ee_prices_forecast_poll_interval` | Forecast Poll Interval | Config | Slider (1–24 h) for how often the eupowerprices.com EE forecast API is polled. |
 
 > **What "Fetch Nordpool Prices Now" does:** it calls the public Nordpool Day-Ahead REST API (`dataportal-api.nordpoolgroup.com`) for the EE area immediately — there is no HTML scraping. Normally the integration polls that API on the fast/slow schedule; this button just forces a poll right now. The API source and last/next poll times are visible on the **Day-Ahead Publish Status**, **Last Nordpool Poll** and **Next Nordpool Poll** entities, and every actual poll is written to the Home Assistant log at INFO level.
+
+### Failure monitoring
+
+The **Update Problem** binary sensor (device class *problem*, in the Diagnostic group) turns on whenever any update is failing, and lists what and why in its attributes:
+
+* **Nordpool scraping** — HTTP errors or exceptions fetching today's/tomorrow's prices (the expected `HTTP 404` before tomorrow's prices are published does **not** count as a failure);
+* **eupowerprices.com polling** — HTTP errors/exceptions, or the Estonia (EE) source being selected with no API key configured;
+* **EMHASS calls** — any of MPC, publish, fit, tune, or predict whose most recent run ended in an error.
+
+When a failure appears the integration also raises a **persistent notification** (bell icon) summarizing the failing components; it is dismissed automatically once everything recovers. For push/mobile alerts, trigger an automation on `binary_sensor.nordpool_ee_prices_update_problem` turning `on`.
 
 ---
 
