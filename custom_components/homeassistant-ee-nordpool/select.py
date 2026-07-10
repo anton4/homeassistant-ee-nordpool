@@ -32,6 +32,16 @@ class NordpoolForecastSourceSelect(SelectEntity):
     def current_option(self):
         return self.coordinator.forecast_source
 
+    @property
+    def extra_state_attributes(self):
+        return {
+            "finland_fi": "Predicted FI prices from the nordpool-predict-fi project "
+                          "(https://github.com/vividfog/nordpool-predict-fi), read from "
+                          "sensor.nordpool_predict_fi_price published by its HACS companion integration.",
+            "estonia_ee": "Predicted EE prices fetched directly from the eupowerprices.com API "
+                          "(requires an API key in the integration configuration).",
+        }
+
     async def async_select_option(self, option: str):
         """Switch the active forecast source and force all sensors to recalculate."""
         await self.coordinator.async_set_forecast_source(option)
