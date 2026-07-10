@@ -1,4 +1,4 @@
-from homeassistant.components.number import NumberEntity
+from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from .const import DOMAIN
@@ -8,6 +8,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities([
         NordpoolExtendFIDaysNumber(coordinator),
         NordpoolEmhassMpcIntervalNumber(coordinator),
+        NordpoolForecastPollIntervalNumber(coordinator),
     ])
 
 class NordpoolExtendFIDaysNumber(NumberEntity):
@@ -73,3 +74,37 @@ class NordpoolEmhassMpcIntervalNumber(NumberEntity):
     async def async_set_native_value(self, value: float):
         """Update the automatic MPC interval and recompute the next-run ETA."""
         await self.coordinator.async_set_emhass_mpc_interval(int(value))
+
+
+class NordpoolForecastPollIntervalNumber(NumberEntity):
+    """How often to poll the eupowerprices.com EE forecast API (hours)."""
+    _attr_has_entity_name = True
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(self, coordinator):
+        self.coordinator = coordinator
+        self._attr_name = "Forecast Poll Interval"
+        self._attr_unique_id = "nordpool_forecast_poll_interval_number"
+        self._attr_icon = "mdi:timer-outline"
+        self._attr_native_min_value = 1
+        self._attr_native_max_value = 24
+        self._attr_native_step = 1
+        self._attr_native_unit_of_measurement = "h"
+        self._attr_mode = NumberMode.SLIDER
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self.coordinator.entry.entry_id)},
+            name="Nordpool EE Prices",
+            manufacturer="Custom Scraper",
+            model="15-Minute Market Resolution",
+        )
+
+    @property
+    def native_value(self):
+        return self.coordinator.forecast_poll_hours
+
+    async def async_set_native_value(self, value: float):
+        """Update how often the EE forecast API is polled."""
+        await self.coordinator.async_set_forecast_poll_hours(int(value))

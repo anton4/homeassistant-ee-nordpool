@@ -28,6 +28,8 @@ async def async_setup_entry(hass, entry, async_add_entities):
         NordpoolLastPollSensor(coordinator),
         NordpoolNextPollSensor(coordinator),
         NordpoolEeForecastSensor(coordinator),
+        NordpoolForecastLastPollSensor(coordinator),
+        NordpoolForecastNextPollSensor(coordinator),
         NordpoolEmhassNextRunSensor(coordinator),
     ]
     for service_key, label in EMHASS_SERVICE_LABELS.items():
@@ -420,6 +422,43 @@ class NordpoolEeForecastSensor(NordpoolBaseEntity, SensorEntity):
             "last_fetch": last.isoformat() if last else None,
             "forecast": self.coordinator.ee_forecast or [],
         }
+
+
+class NordpoolForecastLastPollSensor(NordpoolBaseEntity, SensorEntity):
+    """When the eupowerprices.com EE forecast API was last polled."""
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Forecast API Last Poll"
+        self._attr_unique_id = "nordpool_forecast_last_poll_sensor"
+        self._attr_icon = "mdi:clock-check"
+
+    @property
+    def native_value(self):
+        return self.coordinator.last_forecast_poll
+
+
+class NordpoolForecastNextPollSensor(NordpoolBaseEntity, SensorEntity):
+    """When the eupowerprices.com EE forecast API will next be polled (only while Estonia (EE) is selected)."""
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator):
+        super().__init__(coordinator)
+        self._attr_name = "Forecast API Next Poll"
+        self._attr_unique_id = "nordpool_forecast_next_poll_sensor"
+        self._attr_icon = "mdi:update"
+
+    @property
+    def native_value(self):
+        if self.coordinator.forecast_source != OPTION_EE:
+            return None
+        last = self.coordinator.last_forecast_poll
+        if last is None:
+            return None
+        return last + timedelta(hours=self.coordinator.forecast_poll_hours)
 
 
 class NordpoolEmhassNextRunSensor(NordpoolBaseEntity, SensorEntity):

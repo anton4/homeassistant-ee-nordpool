@@ -85,6 +85,8 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 | `sensor.nordpool_ee_prices_last_poll_time` | Last Nordpool Poll | timestamp of the last actual fetch from the Nordpool API | — |
 | `sensor.nordpool_ee_prices_next_poll_time` | Next Nordpool Poll | timestamp of the next scheduled fetch | — |
 | `sensor.nordpool_ee_prices_ee_forecast` | EE Price Forecast | `Inactive`, or the eupowerprices.com fetch status (e.g. `Success (387 points)`) | `active`, `forecast_source`, `provider`, `api`, `api_key_set`, `http_code`, `points`, `last_fetch`, `forecast` (the raw hourly forecast) |
+| `sensor.nordpool_ee_prices_forecast_last_poll` | Forecast API Last Poll | timestamp of the last eupowerprices.com fetch | — |
+| `sensor.nordpool_ee_prices_forecast_next_poll` | Forecast API Next Poll | timestamp of the next eupowerprices.com fetch (only while Estonia (EE) is selected) | — |
 | `sensor.nordpool_ee_prices_emhass_next_run` | EMHASS Next Run | timestamp (ETA of next auto MPC) | `auto_mpc_enabled`, `interval_minutes`, `last_scheduled_run` |
 | `sensor.nordpool_ee_prices_emhass_last_mpc` | EMHASS Last MPC | timestamp of last MPC call | `status`, `http_code`, `duration_seconds`, `error`, `response`, `payload` |
 | `sensor.nordpool_ee_prices_emhass_last_publish` | EMHASS Last Publish | timestamp of last publish-data call | *(same as above)* |
@@ -101,6 +103,7 @@ On the device page, Home Assistant groups these into **Sensors** (primary data),
 | `number.nordpool_ee_prices_forecast_extend_days` | Forecast Extend Days | Config | How many days beyond the last actual EE hour to extend using the selected forecast (1–7). |
 | `switch.nordpool_ee_prices_emhass_auto_mpc` | EMHASS Auto MPC | Config | Enable/disable the integration's automatic EMHASS MPC schedule. |
 | `number.nordpool_ee_prices_emhass_mpc_interval` | EMHASS MPC Interval | Config | Minutes between automatic MPC runs (1–120). |
+| `number.nordpool_ee_prices_forecast_poll_interval` | Forecast Poll Interval | Config | Slider (1–24 h) for how often the eupowerprices.com EE forecast API is polled. |
 
 > **What "Fetch Nordpool Prices Now" does:** it calls the public Nordpool Day-Ahead REST API (`dataportal-api.nordpoolgroup.com`) for the EE area immediately — there is no HTML scraping. Normally the integration polls that API on the fast/slow schedule; this button just forces a poll right now. The API source and last/next poll times are visible on the **Day-Ahead Publish Status**, **Last Nordpool Poll** and **Next Nordpool Poll** entities, and every actual poll is written to the Home Assistant log at INFO level.
 
@@ -120,7 +123,7 @@ Fetches the EE price forecast from the [eupowerprices.com](https://eupowerprices
 
 * **Endpoint:** `GET https://api.eupowerprices.com/v1/forecasts/EE/latest`
 * **Auth:** `X-API-Key: <your key>` header — set the key in the integration's configuration (see below).
-* **Data:** hourly `series` in `EUR/MWh`; the coordinator converts to `€/kWh`, stores it, and refreshes it about once per hour (or immediately when you switch the source or press *Fetch Nordpool Prices Now*).
+* **Data:** hourly `series` in `EUR/MWh`; the coordinator converts to `€/kWh`, stores it, and refreshes it on the **Forecast Poll Interval** (a 1–24 h slider, default 1 h) — or immediately when you switch the source or press *Fetch Nordpool Prices Now*. The **Forecast API Last Poll** / **Forecast API Next Poll** sensors show the timing.
 
 **How to turn it on (two steps — the API key alone does nothing):**
 1. Enter your key in the integration's **Configure** dialog → *eupowerprices.com API key*.
