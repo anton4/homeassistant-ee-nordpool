@@ -164,6 +164,15 @@ class NordpoolCoordinator(DataUpdateCoordinator):
 
         interval = timedelta(minutes=max(1, self.emhass_mpc_interval))
         if self.emhass_last_mpc is None or (now - self.emhass_last_mpc) >= interval:
+            # EMHASS snapshots "now" twice per request (forecast grid, then price
+            # grid) and rounds each onto the 15-min optimization grid. A request
+            # whose few seconds of prep straddle a grid boundary or its midpoint
+            # gets two misaligned grids and dies with a KeyError. Wait for the
+            # next minute tick instead of firing inside that window.
+            slot_seconds = (now.minute % 15) * 60 + now.second
+            if min(abs(slot_seconds - hazard) for hazard in (0, 450, 900)) < 30:
+                self.emhass_next_mpc = now + timedelta(minutes=1)
+                return
             self.emhass_last_mpc = now
             self.emhass_next_mpc = now + interval
             await self._async_save_cache()
