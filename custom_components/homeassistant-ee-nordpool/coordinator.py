@@ -163,24 +163,41 @@ class NordpoolCoordinator(DataUpdateCoordinator):
             return
 
         interval = timedelta(minutes=max(1, self.emhass_mpc_interval))
-        if self.emhass_last_mpc is None or (now - self.emhass_last_mpc) >= interval:
-            # EMHASS snapshots "now" twice per request (forecast grid, then price
-            # grid) and rounds each onto the 15-min optimization grid. A request
-            # whose few seconds of prep straddle a grid boundary or its midpoint
-            # gets two misaligned grids and dies with a KeyError. Wait for the
-            # next minute tick instead of firing inside that window.
-            slot_seconds = (now.minute % 15) * 60 + now.second
-            if min(abs(slot_seconds - hazard) for hazard in (0, 450, 900)) < 30:
-                self.emhass_next_mpc = now + timedelta(minutes=1)
-                return
-            self.emhass_last_mpc = now
-            self.emhass_next_mpc = now + interval
-            await self._async_save_cache()
-            self.hass.async_create_task(
-                self.hass.services.async_call(DOMAIN, "run_mpc_optim", {}, blocking=True)
-            )
-        else:
+        # 90s slack so a run that slipped to minute 14 (missed tick) is still
+        # due again in the next slot's alignment window.
+        due = self.emhass_last_mpc is None or (now - self.emhass_last_mpc) >= interval - timedelta(
+            seconds=90
+        )
+        if not due:
             self.emhass_next_mpc = self.emhass_last_mpc + interval
+            return
+
+        # Phase-lock runs to the quarter-hour grid: fire in minute 13 of the
+        # slot (minute 14 as catch-up) so EMHASS, which rounds its grid to the
+        # NEAREST 15 min, plans for the upcoming slot and publishes it before
+        # the slot boundary. A free-running phase (e.g. :08) publishes each
+        # slot's plan ~9 minutes into the slot, after automations that read it
+        # right at the boundary have already acted on the previous plan.
+        if interval >= timedelta(minutes=15) and now.minute % 15 not in (13, 14):
+            self.emhass_next_mpc = now + timedelta(minutes=(13 - now.minute % 15) % 15)
+            return
+
+        # EMHASS snapshots "now" twice per request (forecast grid, then price
+        # grid) and rounds each onto the 15-min optimization grid. A request
+        # whose few seconds of prep straddle a grid boundary or its midpoint
+        # gets two misaligned grids and dies with a KeyError. Wait for the
+        # next minute tick instead of firing inside that window.
+        slot_seconds = (now.minute % 15) * 60 + now.second
+        if min(abs(slot_seconds - hazard) for hazard in (0, 450, 900)) < 30:
+            self.emhass_next_mpc = now + timedelta(minutes=1)
+            return
+
+        self.emhass_last_mpc = now
+        self.emhass_next_mpc = now + interval
+        await self._async_save_cache()
+        self.hass.async_create_task(
+            self.hass.services.async_call(DOMAIN, "run_mpc_optim", {}, blocking=True)
+        )
 
     async def async_request_refresh(self):
         self._force_next = True
