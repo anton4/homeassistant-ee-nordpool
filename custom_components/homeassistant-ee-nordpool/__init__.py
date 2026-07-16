@@ -3,6 +3,7 @@ import async_timeout
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.event import async_track_time_change
 import homeassistant.util.dt as dt_util
 from .const import DOMAIN, OPTION_NONE
 from .coordinator import NordpoolCoordinator
@@ -178,6 +179,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.services.async_register(DOMAIN, "predict_ml_model", handle_predict_ml_model, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "run_mpc_optim", handle_run_mpc_optim, supports_response=SupportsResponse.OPTIONAL)
     hass.services.async_register(DOMAIN, "publish_data", handle_publish_data, supports_response=SupportsResponse.OPTIONAL)
+
+    async def _publish_on_quarter(now):
+        """Post the current slot's plan right after each quarter-hour boundary.
+
+        EMHASS's continual_publish thread free-runs from server start, so left
+        alone the plan sensors can refresh as late as ~14 minutes into a slot.
+        Automations that read them right after the boundary need the row for
+        the slot that just started; with method_ts_round=nearest, a
+        publish-data call at boundary+2s selects exactly that row.
+        """
+        if not coordinator.emhass_auto_mpc:
+            return
+        await call_emhass("publish_data", "publish-data", {}, 60)
+
+    entry.async_on_unload(
+        async_track_time_change(hass, _publish_on_quarter, minute=[0, 15, 30, 45], second=2)
+    )
 
     return True
 
