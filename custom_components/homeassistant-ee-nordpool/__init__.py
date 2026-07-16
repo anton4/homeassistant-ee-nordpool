@@ -145,6 +145,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         load_cost = [round(p, 4) for p in import_prices]
         prod_price = [round(p, 4) for p in export_prices]
 
+        # The lists above are anchored to the slot containing "now" ([0] = the
+        # current slot). EMHASS with method_ts_round=nearest anchors its grid
+        # to the NEAREST quarter-hour, so a run in the second half of a slot
+        # plans from the NEXT slot. Drop the current slot's element in that
+        # case, or every series lands one grid row late and the whole plan
+        # (and the published sensors) permanently lags one slot behind.
+        now = dt_util.now()
+        if (now.minute % 15) * 60 + now.second > 450:
+            load_cost = load_cost[1:]
+            prod_price = prod_price[1:]
+            pv_forecast = pv_forecast[1:]
+            timestamps_left = max(0, int(timestamps_left) - 1)
+
         payload = {
             "load_cost_forecast": load_cost,
             "prod_price_forecast": prod_price,
